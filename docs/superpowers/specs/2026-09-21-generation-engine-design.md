@@ -128,8 +128,11 @@ UI when both are true:
   nodes have ≥2 distinct `cluster` values.
 - `directionChange`: the set of clusters reachable via the candidate's
   outgoing C→C edges is not a subset of the set of clusters feeding into it
-  (incoming Fuente clusters ∪ the candidate's own cluster if reached via
-  C→C). I.e., at least one downstream cluster is new relative to upstream.
+  (incoming Fuente clusters ∪ the clusters of any incoming Concepto sources
+  ∪ the candidate's own cluster — "before it" includes the point itself,
+  so a child in the same cluster as the candidate is not a direction
+  change). I.e., at least one downstream cluster is new relative to
+  upstream-plus-the-candidate-itself.
 
 A candidate that fails either check is dropped silently — this is expected
 behavior per the product spec ("an honest graph without turning points is

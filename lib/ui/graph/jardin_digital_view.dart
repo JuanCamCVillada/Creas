@@ -51,9 +51,7 @@ class JardinDigitalView extends StatelessWidget {
       }
     }
 
-    final algorithm = FruchtermanReingoldAlgorithm(
-      FruchtermanReingoldConfiguration(iterations: 1000),
-    );
+    final algorithm = FruchtermanReingoldAlgorithm(FruchtermanReingoldConfiguration());
 
     return GraphView.builder(
       graph: graphViewGraph,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'engine/graph_generator.dart';
 import 'storage/api_key_store.dart';
 import 'storage/session_store.dart';
+import 'ui/sessions/session_list_screen.dart';
 
 class CreativeApp extends StatelessWidget {
   const CreativeApp({
@@ -21,8 +22,10 @@ class CreativeApp extends StatelessWidget {
     return MaterialApp(
       title: 'Genealogía Creativa',
       theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal)),
-      home: const Scaffold(
-        body: Center(child: Text('Genealogía Creativa')),
+      home: SessionListScreen(
+        sessionStore: sessionStore,
+        apiKeyStore: apiKeyStore,
+        generator: generator,
       ),
     );
   }

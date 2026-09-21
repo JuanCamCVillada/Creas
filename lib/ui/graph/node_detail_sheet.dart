@@ -10,37 +10,35 @@ class NodeDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(node.label, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(node.description),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: [
-                  Chip(label: Text(node.cluster)),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(node.label, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(node.description),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              children: [
+                Chip(label: Text(node.cluster)),
+                Chip(
+                  label: Text(
+                    node.origin == NodeOrigin.usuario ? 'usuario' : 'sugerido',
+                  ),
+                ),
+                if (node.confidence != null)
                   Chip(
                     label: Text(
-                      node.origin == NodeOrigin.usuario ? 'usuario' : 'sugerido',
+                      'confianza ${(node.confidence! * 100).round()}%',
                     ),
                   ),
-                  if (node.confidence != null)
-                    Chip(
-                      label: Text(
-                        'confianza ${(node.confidence! * 100).round()}%',
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );

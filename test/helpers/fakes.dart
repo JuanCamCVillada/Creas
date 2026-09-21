@@ -1,5 +1,8 @@
 import 'package:creative/engine/graph_generation_client.dart';
+import 'package:creative/engine/graph_generator.dart';
+import 'package:creative/models/session.dart';
 import 'package:creative/storage/api_key_store.dart';
+import 'package:creative/storage/session_store.dart';
 
 class FakeApiKeyStore implements ApiKeyStore {
   FakeApiKeyStore([this._key]);
@@ -33,5 +36,37 @@ class FakeGraphGenerationClient implements GraphGenerationClient {
     final index = _callCount;
     _callCount++;
     return _responses[index]();
+  }
+}
+
+class FakeGraphGenerator implements GraphGenerator {
+  FakeGraphGenerator([this._onGenerate]);
+
+  final Future<GraphSession> Function(String rawInput)? _onGenerate;
+
+  @override
+  Future<GraphSession> generate(String rawInput) {
+    if (_onGenerate != null) return _onGenerate(rawInput);
+    throw UnimplementedError('FakeGraphGenerator has no _onGenerate handler');
+  }
+}
+
+class FakeSessionStore implements SessionStore {
+  FakeSessionStore([List<GraphSession>? initial]) : sessions = initial ?? [];
+
+  final List<GraphSession> sessions;
+
+  @override
+  Future<List<GraphSession>> listSessions() async =>
+      List.unmodifiable(sessions);
+
+  @override
+  Future<void> saveSession(GraphSession session) async {
+    sessions.insert(0, session);
+  }
+
+  @override
+  Future<void> deleteSession(String id) async {
+    sessions.removeWhere((s) => s.id == id);
   }
 }

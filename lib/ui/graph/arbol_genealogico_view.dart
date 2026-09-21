@@ -70,18 +70,6 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
       }
     }
 
-    // Add self-loops for orphan nodes to ensure they render
-    for (final node in visibleNodes) {
-      final nodeId = Node.Id(node.id);
-      // Check if this node has any edges
-      final hasEdges = graphViewGraph.edges.any((e) =>
-        e.source == nodeId || e.destination == nodeId
-      );
-      if (!hasEdges) {
-        graphViewGraph.addEdge(nodeId, nodeId);
-      }
-    }
-
     final configuration = SugiyamaConfiguration()
       ..orientation = SugiyamaConfiguration.ORIENTATION_TOP_BOTTOM
       ..nodeSeparation = 24

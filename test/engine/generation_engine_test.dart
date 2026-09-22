@@ -104,7 +104,7 @@ void main() {
       );
     });
 
-    test('throws GenerationFailedException on a cyclic lineage without retry', () async {
+    test('retries once after a cyclic lineage, then succeeds', () async {
       final apiKeyStore = FakeApiKeyStore('sk-ant-test');
       final client = FakeGraphGenerationClient([_cyclicArgs, _validArgs]);
       final GraphGenerator engine =

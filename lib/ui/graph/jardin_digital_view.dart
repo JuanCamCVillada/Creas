@@ -29,6 +29,24 @@ class JardinDigitalView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Guard against graphview crash on 0 or 1-node graphs
+    if (graph.nodes.isEmpty) {
+      return const Center(child: Text('El jardín está vacío.'));
+    }
+    if (graph.nodes.length == 1) {
+      final onlyNode = graph.nodes.first;
+      return Center(
+        child: _NodeChip(
+          node: onlyNode,
+          color: _colorForCluster(onlyNode.cluster),
+          onTap: () => showModalBottomSheet<void>(
+            context: context,
+            builder: (_) => NodeDetailSheet(node: onlyNode),
+          ),
+        ),
+      );
+    }
+
     final nodesById = {for (final node in graph.nodes) node.id: node};
     final graphViewGraph = Graph();
 

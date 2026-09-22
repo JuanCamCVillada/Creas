@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:creative/models/affinity_edge.dart';
 import 'package:creative/models/creative_graph.dart';
+import 'package:creative/models/lineage_edge.dart';
 import 'package:creative/models/node.dart';
 import 'package:creative/models/session.dart';
 import 'package:creative/ui/graph/graph_view_screen.dart';
@@ -13,6 +14,14 @@ GraphSession _sessionWithNode() => GraphSession(
       graph: const CreativeGraph(
         nodes: [
           Node(
+            id: 's1',
+            type: NodeType.fuente,
+            label: 'Charla de bases de datos',
+            description: 'd',
+            cluster: 'bases-de-datos',
+            origin: NodeOrigin.usuario,
+          ),
+          Node(
             id: 'c1',
             type: NodeType.concepto,
             label: 'Cache manual',
@@ -21,7 +30,14 @@ GraphSession _sessionWithNode() => GraphSession(
             origin: NodeOrigin.usuario,
           ),
         ],
-        edges: [],
+        edges: [
+          LineageEdge(
+            id: 'e1',
+            source: 's1',
+            target: 'c1',
+            relation: LineageRelation.desencadena,
+          ),
+        ],
         affinityEdges: [],
         turningPoints: [],
         followupQuestions: [],

@@ -109,4 +109,48 @@ void main() {
 
     expect(find.text('convergencia real'), findsOneWidget);
   });
+
+  testWidgets('renders TU root even with no visible level-1 referente', (tester) async {
+    const graph = CreativeGraph(
+      nodes: [
+        Node(
+          id: 's1',
+          type: NodeType.fuente,
+          label: 'Charla de bases de datos',
+          description: 'd',
+          cluster: 'bases-de-datos',
+          origin: NodeOrigin.usuario,
+        ),
+        Node(
+          id: 'c1',
+          type: NodeType.concepto,
+          label: 'Cache manual',
+          description: 'd',
+          cluster: 'arquitectura-software',
+          origin: NodeOrigin.usuario,
+        ),
+      ],
+      edges: [
+        LineageEdge(id: 'e1', source: 's1', target: 'c1', relation: LineageRelation.desencadena),
+      ],
+      affinityEdges: [],
+      turningPoints: [],
+      followupQuestions: [],
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 800,
+          height: 600,
+          child: ArbolGenealogicoView(graph: graph),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('TÚ'), findsOneWidget);
+    expect(find.text('Charla de bases de datos'), findsOneWidget);
+    expect(find.text('Cache manual'), findsOneWidget);
+  });
 }

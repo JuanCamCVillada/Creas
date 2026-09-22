@@ -70,6 +70,25 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
       }
     }
 
+    final rootHasEdge = graphViewGraph.edges
+        .any((e) => e.source.key!.value == _rootId);
+    if (!rootHasEdge) {
+      final nodesWithIncomingEdge = graphViewGraph.edges
+          .map((e) => e.destination.key!.value as String)
+          .toSet();
+      final connectedIds = <String>{};
+      for (final e in graphViewGraph.edges) {
+        connectedIds.add(e.source.key!.value as String);
+        connectedIds.add(e.destination.key!.value as String);
+      }
+      connectedIds.remove(_rootId);
+      final entryPoints =
+          connectedIds.where((id) => !nodesWithIncomingEdge.contains(id));
+      for (final id in entryPoints) {
+        graphViewGraph.addEdge(Node.Id(_rootId), Node.Id(id));
+      }
+    }
+
     final configuration = SugiyamaConfiguration()
       ..orientation = SugiyamaConfiguration.ORIENTATION_TOP_BOTTOM
       ..nodeSeparation = 24

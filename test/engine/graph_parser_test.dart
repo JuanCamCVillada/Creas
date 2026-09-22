@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:creative/engine/graph_parser.dart';
-import 'package:creative/models/node.dart';
 
 Map<String, dynamic> _validArgs() => {
       'nodes': [

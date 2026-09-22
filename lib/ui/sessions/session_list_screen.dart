@@ -36,10 +36,12 @@ class _SessionListScreenState extends State<SessionListScreen> {
 
   Future<void> _load() async {
     final sessions = await widget.sessionStore.listSessions();
-    if (mounted) setState(() {
-      _sessions = sessions;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _sessions = sessions;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _openNewSession() async {

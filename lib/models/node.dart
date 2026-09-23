@@ -15,6 +15,7 @@ class Node {
     this.sequence,
     this.level,
     this.referenteOf,
+    this.icon,
   });
 
   final String id;
@@ -28,6 +29,7 @@ class Node {
   final int? sequence;
   final int? level;
   final String? referenteOf;
+  final String? icon;
 
   factory Node.fromJson(Map<String, dynamic> json) {
     return Node(
@@ -42,6 +44,7 @@ class Node {
       sequence: (json['sequence'] as num?)?.toInt(),
       level: (json['level'] as num?)?.toInt(),
       referenteOf: json['referente_of'] as String?,
+      icon: json['icon'] as String?,
     );
   }
 
@@ -57,6 +60,7 @@ class Node {
         if (sequence != null) 'sequence': sequence,
         if (level != null) 'level': level,
         if (referenteOf != null) 'referente_of': referenteOf,
+        if (icon != null) 'icon': icon,
       };
 
   static NodeType _parseType(String raw) {
@@ -95,9 +99,10 @@ class Node {
           timestamp == other.timestamp &&
           sequence == other.sequence &&
           level == other.level &&
-          referenteOf == other.referenteOf;
+          referenteOf == other.referenteOf &&
+          icon == other.icon;
 
   @override
   int get hashCode => Object.hash(id, type, label, description, cluster,
-      origin, confidence, timestamp, sequence, level, referenteOf);
+      origin, confidence, timestamp, sequence, level, referenteOf, icon);
 }

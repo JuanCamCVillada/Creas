@@ -5,6 +5,7 @@ import 'package:creative/models/creative_graph.dart';
 import 'package:creative/models/node.dart';
 import 'package:creative/models/affinity_edge.dart';
 import 'package:creative/ui/graph/jardin_digital_view.dart';
+import 'package:creative/ui/graph/node_icons.dart';
 
 CreativeGraph _graph() => const CreativeGraph(
       nodes: [
@@ -31,6 +32,7 @@ CreativeGraph _graph() => const CreativeGraph(
           description: 'd',
           cluster: 'musica',
           origin: NodeOrigin.usuario,
+          icon: 'music_note',
         ),
       ],
       edges: [],
@@ -55,6 +57,10 @@ void main() {
     expect(find.text('Charla de bases de datos'), findsOneWidget);
     expect(find.text('Cache manual'), findsOneWidget);
     expect(find.text('Fragmento suelto'), findsOneWidget);
+
+    // The one node with a valid icon shows it; nodes without one fall back
+    // to the type default rather than showing nothing.
+    expect(find.byIcon(nodeIconByName['music_note']!), findsOneWidget);
   });
 
   testWidgets('tapping a node opens its detail sheet', (tester) async {

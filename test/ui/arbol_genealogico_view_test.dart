@@ -6,6 +6,7 @@ import 'package:creative/models/node.dart';
 import 'package:creative/models/lineage_edge.dart';
 import 'package:creative/models/turning_point.dart';
 import 'package:creative/ui/graph/arbol_genealogico_view.dart';
+import 'package:creative/ui/graph/node_icons.dart';
 
 CreativeGraph _graph() => const CreativeGraph(
       nodes: [
@@ -36,6 +37,7 @@ CreativeGraph _graph() => const CreativeGraph(
           description: 'd',
           cluster: 'arquitectura-software',
           origin: NodeOrigin.usuario,
+          icon: 'code',
         ),
       ],
       edges: [
@@ -70,6 +72,9 @@ void main() {
     expect(find.text('Robert C. Martin'), findsOneWidget);
     expect(find.text('Kent Beck'), findsOneWidget);
     expect(find.text('Cache manual'), findsOneWidget);
+
+    // Cache manual has a valid icon and should render it.
+    expect(find.byIcon(nodeIconByName['code']!), findsOneWidget);
   });
 
   testWidgets('rejecting a sugerido node removes it from the tree', (tester) async {

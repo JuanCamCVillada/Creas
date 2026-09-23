@@ -24,6 +24,21 @@ void main() {
       expect(node.confidence, isNull);
       expect(node.level, isNull);
       expect(node.referenteOf, isNull);
+      expect(node.icon, isNull);
+    });
+
+    test('fromJson parses an optional icon', () {
+      final node = Node.fromJson({
+        'id': 's2',
+        'type': 'fuente',
+        'label': 'Un bug de memoria',
+        'description': 'd',
+        'cluster': 'infraestructura',
+        'origin': 'usuario',
+        'icon': 'bug_report',
+      });
+
+      expect(node.icon, 'bug_report');
     });
 
     test('fromJson parses a suggested concepto node with confidence and level', () {
@@ -78,6 +93,7 @@ void main() {
       expect(roundTripped.type, original.type);
       expect(roundTripped.sequence, original.sequence);
       expect(roundTripped.confidence, isNull);
+      expect(roundTripped.icon, isNull);
     });
   });
 }

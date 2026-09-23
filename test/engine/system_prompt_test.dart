@@ -1,5 +1,6 @@
 // test/engine/system_prompt_test.dart
 import 'package:flutter_test/flutter_test.dart';
+import 'package:creative/engine/icon_catalog.dart';
 import 'package:creative/engine/system_prompt.dart';
 
 void main() {
@@ -24,6 +25,13 @@ void main() {
       final lower = creativeGraphSystemPrompt.toLowerCase();
       expect(lower, contains('propose no candidates'));
       expect(lower, contains('never invent dates'));
+    });
+
+    test('lists every allowed icon name and tells the model icon is optional', () {
+      for (final name in allowedNodeIconNames) {
+        expect(creativeGraphSystemPrompt, contains(name));
+      }
+      expect(creativeGraphSystemPrompt.toLowerCase(), contains('omit icon'));
     });
   });
 }

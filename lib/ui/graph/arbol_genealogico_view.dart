@@ -5,6 +5,7 @@ import 'package:graphview/GraphView.dart';
 import '../../models/creative_graph.dart';
 import '../../models/node.dart' as model;
 import 'node_detail_sheet.dart';
+import 'node_icons.dart';
 import 'turning_point_badge.dart';
 
 const _rootId = 'root-tu';
@@ -105,6 +106,7 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
         final modelNode = nodesById[id]!;
         return _TreeChip(
           label: modelNode.label,
+          icon: iconForNode(modelNode),
           isSugerido: modelNode.origin == model.NodeOrigin.sugerido,
           hasTurningPoint: turningPointIds.contains(id),
           onTap: () => showModalBottomSheet<void>(
@@ -127,6 +129,7 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
 class _TreeChip extends StatelessWidget {
   const _TreeChip({
     required this.label,
+    this.icon,
     this.isRoot = false,
     this.isSugerido = false,
     this.hasTurningPoint = false,
@@ -137,6 +140,7 @@ class _TreeChip extends StatelessWidget {
   });
 
   final String label;
+  final IconData? icon;
   final bool isRoot;
   final bool isSugerido;
   final bool hasTurningPoint;
@@ -161,6 +165,10 @@ class _TreeChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: Colors.white),
+              const SizedBox(width: 4),
+            ],
             Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
             if (hasTurningPoint) ...[
               const SizedBox(width: 4),

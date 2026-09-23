@@ -1,5 +1,6 @@
 // test/engine/tool_schema_test.dart
 import 'package:flutter_test/flutter_test.dart';
+import 'package:creative/engine/icon_catalog.dart';
 import 'package:creative/engine/tool_schema.dart';
 
 void main() {
@@ -49,6 +50,24 @@ void main() {
       // schema is rejected by the API.
       expect((nodeProperties['type'] as Map)['format'], 'enum');
       expect((nodeProperties['origin'] as Map)['format'], 'enum');
+    });
+
+    test('node schema exposes icon as an optional enum matching the icon catalog', () {
+      final inputSchema =
+          emitCreativeGraphToolSchema['input_schema'] as Map<String, dynamic>;
+      final properties = inputSchema['properties'] as Map<String, dynamic>;
+      final nodeItemSchema =
+          (properties['nodes'] as Map<String, dynamic>)['items']
+              as Map<String, dynamic>;
+      final nodeProperties =
+          nodeItemSchema['properties'] as Map<String, dynamic>;
+      final nodeRequired = nodeItemSchema['required'] as List;
+
+      final iconSchema = nodeProperties['icon'] as Map<String, dynamic>;
+      expect(iconSchema['type'], 'STRING');
+      expect(iconSchema['format'], 'enum');
+      expect(iconSchema['enum'], allowedNodeIconNames);
+      expect(nodeRequired, isNot(contains('icon')));
     });
 
     test('edge schema enumerates the four lineage relations', () {

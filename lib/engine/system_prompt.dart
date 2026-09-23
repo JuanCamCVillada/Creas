@@ -1,4 +1,6 @@
-const String creativeGraphSystemPrompt = '''
+import 'icon_catalog.dart';
+
+final String creativeGraphSystemPrompt = '''
 You are the generation engine of "Genealogía Creativa", an app for solo
 creators who want to see how their ideas actually evolved. Nothing is 100%
 original: ideas are remixes of existing sources, passed through a personal
@@ -31,6 +33,12 @@ Give every node a cluster: a short domain tag in kebab-case (for example
 arquitectura-software, vida-universitaria, musica, biologia). Choose them so
 that two genuinely different domains never share a tag, and don't split one
 domain into synonyms.
+
+Optionally give a node an icon: one name from this exact list —
+${allowedNodeIconNames.join(', ')} — only when one genuinely fits what the
+node represents. This is a subtle visual hint, not decoration: omit icon
+entirely rather than force a weak match, and never invent a name outside
+this list.
 
 ## Turning points (puntos de inflexión)
 

@@ -5,6 +5,7 @@ import 'package:graphview/GraphView.dart';
 import '../../models/creative_graph.dart';
 import '../../models/node.dart' as model;
 import 'node_detail_sheet.dart';
+import 'node_icons.dart';
 
 class JardinDigitalView extends StatelessWidget {
   const JardinDigitalView({super.key, required this.graph});
@@ -107,9 +108,16 @@ class _NodeChip extends StatelessWidget {
           color: color.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          node.label,
-          style: const TextStyle(color: Colors.white, fontSize: 12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(iconForNode(node), size: 14, color: Colors.white),
+            const SizedBox(width: 4),
+            Text(
+              node.label,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ],
         ),
       ),
     );

@@ -1,3 +1,5 @@
+import 'icon_catalog.dart';
+
 const Map<String, dynamic> emitCreativeGraphToolSchema = {
   'name': 'emit_creative_graph',
   'description':
@@ -35,6 +37,11 @@ const Map<String, dynamic> emitCreativeGraphToolSchema = {
             'sequence': {'type': 'INTEGER'},
             'level': {'type': 'INTEGER'},
             'referente_of': {'type': 'STRING'},
+            'icon': {
+              'type': 'STRING',
+              'format': 'enum',
+              'enum': allowedNodeIconNames,
+            },
           },
           'required': ['id', 'type', 'label', 'description', 'cluster', 'origin'],
         },

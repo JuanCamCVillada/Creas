@@ -11,7 +11,7 @@ class GeminiClient implements GraphGenerationClient {
 
   final http.Client _httpClient;
 
-  static const _model = 'gemini-3.1-flash';
+  static const _model = 'gemini-2.5-flash';
   static const _endpoint =
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent';
   static const _functionName = 'emit_creative_graph';

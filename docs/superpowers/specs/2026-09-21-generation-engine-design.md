@@ -155,7 +155,7 @@ better than an invented epiphany"), not an error state.
 1. Build the system prompt from the product spec (node/edge model, turning
    point rules, grounding rules, the two views) — the spec as given is
    already precise enough to serve as the system prompt near-verbatim.
-2. Call `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent` with:
+2. Call `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` with:
    - `contents: [{role: "user", parts: [{text: userInput}]}]`
    - `systemInstruction: {parts: [{text: systemPrompt}]}`
    - `tools: [{functionDeclarations: [emit_creative_graph schema]}]`

@@ -12,7 +12,7 @@ void main() {
       final mockClient = MockClient((request) async {
         expect(
           request.url.toString(),
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
         );
         expect(request.headers['x-goog-api-key'], 'test-key');
 

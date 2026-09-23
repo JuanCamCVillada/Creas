@@ -6,10 +6,10 @@ abstract class GraphGenerationClient {
   });
 }
 
-class AnthropicApiException implements Exception {
-  const AnthropicApiException(this.message);
+class GeminiApiException implements Exception {
+  const GeminiApiException(this.message);
   final String message;
 
   @override
-  String toString() => 'AnthropicApiException: $message';
+  String toString() => 'GeminiApiException: $message';
 }

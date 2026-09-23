@@ -12,7 +12,7 @@ class SecureApiKeyStore implements ApiKeyStore {
   });
 
   final FlutterSecureStorage storage;
-  static const _key = 'anthropic_api_key';
+  static const _key = 'gemini_api_key';
 
   @override
   Future<String?> getApiKey() => storage.read(key: _key);

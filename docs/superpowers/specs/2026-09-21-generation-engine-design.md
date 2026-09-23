@@ -19,8 +19,8 @@ ones the user recognizes as real.
   local persistence.
 - Both view renderers, built on the same graph.
 - Text input only (no in-app audio recording/transcription).
-- User supplies their own Anthropic API key; app calls the Messages API
-  directly (no backend proxy) for this iteration.
+- User supplies their own Gemini API key (free tier); app calls the Gemini
+  `generateContent` API directly (no backend proxy) for this iteration.
 - Target platforms: web, iOS, Android (avoid platform-specific code/plugins
   without web support).
 
@@ -29,9 +29,9 @@ ones the user recognizes as real.
 Five layers, each independently testable:
 
 1. **Input** — a screen with a multiline text field and a "Generar" action.
-2. **Generation engine** — builds the system prompt + a forced tool call to
-   `emit_creative_graph`, calls the Anthropic Messages API with the user's
-   key, and parses the tool-call arguments into Dart models.
+2. **Generation engine** — builds the system prompt + a forced function call
+   to `emit_creative_graph`, calls the Gemini API with the user's key, and
+   parses the returned function-call arguments into Dart models.
 3. **Verification layer** — pure Dart, no LLM: checks the lineage is
    acyclic, and structurally validates each turning-point *candidate* the
    model proposed against the edges actually emitted. Candidates that fail
@@ -43,7 +43,7 @@ Five layers, each independently testable:
    object, laid out via the `graphview` package.
 
 ```
-[Input screen] -> [Generation engine: prompt + Anthropic API]
+[Input screen] -> [Generation engine: prompt + Gemini API]
                         -> [Parse tool-call args into Dart models]
                         -> [Verification layer: cycle check, turning-point check]
                         -> [Local store (shared_preferences, JSON per session)]
@@ -155,12 +155,12 @@ better than an invented epiphany"), not an error state.
 1. Build the system prompt from the product spec (node/edge model, turning
    point rules, grounding rules, the two views) — the spec as given is
    already precise enough to serve as the system prompt near-verbatim.
-2. Call `POST https://api.anthropic.com/v1/messages` with:
-   - `model: "claude-sonnet-5"`
-   - the user's input as the sole user message
-   - `tools: [emit_creative_graph schema]`
-   - `tool_choice: {type: "tool", name: "emit_creative_graph"}`
-   - the user's API key in the `x-api-key` header, read from secure storage
+2. Call `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent` with:
+   - `contents: [{role: "user", parts: [{text: userInput}]}]`
+   - `systemInstruction: {parts: [{text: systemPrompt}]}`
+   - `tools: [{functionDeclarations: [emit_creative_graph schema]}]`
+   - `toolConfig: {functionCallingConfig: {mode: "ANY", allowedFunctionNames: ["emit_creative_graph"]}}`
+   - the user's API key in the `x-goog-api-key` header, read from secure storage
 3. Parse the tool-call arguments into the Dart models above. On a
    schema-mismatched or malformed response, retry the call once; on a
    second failure, surface a clear error ("no se pudo generar el grafo") —
@@ -180,7 +180,7 @@ web (localStorage-backed), iOS, and Android. A simple list screen shows past
 sessions by input snippet + date; tapping reopens both views for that
 session. No search/filter in this iteration.
 
-The user's Anthropic API key is stored via `flutter_secure_storage` (OS
+The user's Gemini API key is stored via `flutter_secure_storage` (OS
 keychain on iOS/Android; browser-storage-backed encryption on web — noted to
 the user as best-effort on web, not OS-grade).
 

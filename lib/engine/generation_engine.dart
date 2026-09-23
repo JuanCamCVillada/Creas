@@ -24,7 +24,7 @@ class GenerationEngine implements GraphGenerator {
     final apiKey = await _apiKeyStore.getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw const GenerationFailedException(
-          'no hay una clave de API de Anthropic configurada');
+          'no hay una clave de API de Gemini configurada');
     }
 
     CreativeGraph? verifiedGraph;

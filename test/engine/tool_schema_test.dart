@@ -10,7 +10,7 @@ void main() {
 
       final inputSchema =
           emitCreativeGraphToolSchema['input_schema'] as Map<String, dynamic>;
-      expect(inputSchema['type'], 'object');
+      expect(inputSchema['type'], 'OBJECT');
 
       final properties = inputSchema['properties'] as Map<String, dynamic>;
       expect(properties.keys, containsAll([
@@ -44,6 +44,11 @@ void main() {
       expect((nodeProperties['type'] as Map)['enum'], ['fuente', 'concepto']);
       expect(
           (nodeProperties['origin'] as Map)['enum'], ['usuario', 'sugerido']);
+
+      // Gemini requires format:"enum" alongside any STRING enum, or the
+      // schema is rejected by the API.
+      expect((nodeProperties['type'] as Map)['format'], 'enum');
+      expect((nodeProperties['origin'] as Map)['format'], 'enum');
     });
 
     test('edge schema enumerates the four lineage relations', () {

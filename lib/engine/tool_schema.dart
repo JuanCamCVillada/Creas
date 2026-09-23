@@ -5,45 +5,51 @@ const Map<String, dynamic> emitCreativeGraphToolSchema = {
       'the directed lineage between them, the undirected affinity edges for '
       'the Jardín Digital view, candidate turning points, and any follow-up '
       'questions needed when the input is too thin to build a lineage.',
+  // Gemini's function-declaration Schema uses UPPERCASE type names (STRING,
+  // OBJECT, ARRAY, NUMBER, INTEGER) and requires format:"enum" alongside any
+  // string enum — see https://ai.google.dev/api/generate-content (Schema).
   'input_schema': {
-    'type': 'object',
+    'type': 'OBJECT',
     'properties': {
       'nodes': {
-        'type': 'array',
+        'type': 'ARRAY',
         'items': {
-          'type': 'object',
+          'type': 'OBJECT',
           'properties': {
-            'id': {'type': 'string'},
+            'id': {'type': 'STRING'},
             'type': {
-              'type': 'string',
+              'type': 'STRING',
+              'format': 'enum',
               'enum': ['fuente', 'concepto'],
             },
-            'label': {'type': 'string'},
-            'description': {'type': 'string'},
-            'cluster': {'type': 'string'},
+            'label': {'type': 'STRING'},
+            'description': {'type': 'STRING'},
+            'cluster': {'type': 'STRING'},
             'origin': {
-              'type': 'string',
+              'type': 'STRING',
+              'format': 'enum',
               'enum': ['usuario', 'sugerido'],
             },
-            'confidence': {'type': 'number'},
-            'timestamp': {'type': 'string'},
-            'sequence': {'type': 'integer'},
-            'level': {'type': 'integer', 'enum': [1, 2]},
-            'referente_of': {'type': 'string'},
+            'confidence': {'type': 'NUMBER'},
+            'timestamp': {'type': 'STRING'},
+            'sequence': {'type': 'INTEGER'},
+            'level': {'type': 'INTEGER'},
+            'referente_of': {'type': 'STRING'},
           },
           'required': ['id', 'type', 'label', 'description', 'cluster', 'origin'],
         },
       },
       'edges': {
-        'type': 'array',
+        'type': 'ARRAY',
         'items': {
-          'type': 'object',
+          'type': 'OBJECT',
           'properties': {
-            'id': {'type': 'string'},
-            'source': {'type': 'string'},
-            'target': {'type': 'string'},
+            'id': {'type': 'STRING'},
+            'source': {'type': 'STRING'},
+            'target': {'type': 'STRING'},
             'relation': {
-              'type': 'string',
+              'type': 'STRING',
+              'format': 'enum',
               'enum': ['desencadena', 'deriva_de', 'inspira', 'transforma_en'],
             },
           },
@@ -51,31 +57,31 @@ const Map<String, dynamic> emitCreativeGraphToolSchema = {
         },
       },
       'affinity_edges': {
-        'type': 'array',
+        'type': 'ARRAY',
         'items': {
-          'type': 'object',
+          'type': 'OBJECT',
           'properties': {
-            'source': {'type': 'string'},
-            'target': {'type': 'string'},
-            'weight': {'type': 'number'},
+            'source': {'type': 'STRING'},
+            'target': {'type': 'STRING'},
+            'weight': {'type': 'NUMBER'},
           },
           'required': ['source', 'target', 'weight'],
         },
       },
       'turning_point_candidates': {
-        'type': 'array',
+        'type': 'ARRAY',
         'items': {
-          'type': 'object',
+          'type': 'OBJECT',
           'properties': {
-            'node_id': {'type': 'string'},
-            'evidence': {'type': 'string'},
+            'node_id': {'type': 'STRING'},
+            'evidence': {'type': 'STRING'},
           },
           'required': ['node_id', 'evidence'],
         },
       },
       'followup_questions': {
-        'type': 'array',
-        'items': {'type': 'string'},
+        'type': 'ARRAY',
+        'items': {'type': 'STRING'},
       },
     },
     'required': [

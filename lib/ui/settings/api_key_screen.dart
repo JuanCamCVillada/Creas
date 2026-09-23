@@ -38,7 +38,7 @@ class _ApiKeyScreenState extends State<ApiKeyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Clave de API de Anthropic')),
+      appBar: AppBar(title: const Text('Clave de API de Gemini')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

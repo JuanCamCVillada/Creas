@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 
 import '../../models/creative_graph.dart';
 import '../../models/node.dart' as model;
+import '../theme/hud_alerts.dart';
 import '../theme/hud_tokens.dart';
 import 'canvas/force_layout.dart';
 import 'canvas/graph_canvas.dart';
+import 'canvas/graph_legend.dart';
 import 'canvas/node_cell.dart';
 import 'canvas/node_shapes.dart';
 import 'node_detail_sheet.dart';
@@ -76,31 +78,98 @@ class JardinDigitalView extends StatelessWidget {
         ),
     ];
 
+    final lowConfidenceFuentes = graph.nodes
+        .where((n) =>
+            n.type == model.NodeType.fuente &&
+            n.confidence != null &&
+            n.confidence! < 0.5)
+        .toList();
+    final graphStatus =
+        lowConfidenceFuentes.isEmpty ? HudStatus.nominal : HudStatus.precaucion;
+
     return Container(
       color: c.bg,
-      child: GraphCanvas(
-        nodeIds: graph.nodes.map((n) => n.id).toList(),
-        initialPositions: positions,
-        edges: edges,
-        nodeSize: _nodeCellSize,
-        edgeColor: c.data,
-        nodeBuilder: (context, id) {
-          final node = nodesById[id]!;
-          final isFuente = node.type == model.NodeType.fuente;
-          return GraphNodeCell(
-            label: node.label,
-            cluster: node.cluster,
-            code: codeOf[id]!,
-            shapeKind: isFuente ? NodeShapeKind.hexagon : NodeShapeKind.circle,
-            fill: isFuente ? c.unit : c.struct,
-            icon: iconForNode(node),
-            isSugerido: node.origin == model.NodeOrigin.sugerido,
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              builder: (_) => NodeDetailSheet(node: node),
+      child: Stack(
+        children: [
+          GraphCanvas(
+            nodeIds: graph.nodes.map((n) => n.id).toList(),
+            initialPositions: positions,
+            edges: edges,
+            nodeSize: _nodeCellSize,
+            edgeColor: c.data,
+            nodeBuilder: (context, id) {
+              final node = nodesById[id]!;
+              final isFuente = node.type == model.NodeType.fuente;
+              final affinityCount = graph.affinityEdges
+                  .where((e) => e.source == id || e.target == id)
+                  .length;
+              return GraphNodeCell(
+                label: node.label,
+                cluster: node.cluster,
+                code: codeOf[id]!,
+                shapeKind: isFuente ? NodeShapeKind.hexagon : NodeShapeKind.circle,
+                fill: isFuente ? c.unit : c.struct,
+                icon: iconForNode(node),
+                isSugerido: node.origin == model.NodeOrigin.sugerido,
+                onTap: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => NodeDetailSheet(
+                    node: node,
+                    code: codeOf[id],
+                    kindLabel: isFuente ? 'FUENTE' : 'CONCEPTO',
+                    glyph: isFuente ? '源' : '概',
+                    stats: [
+                      NodeStat('AFINIDADES', '$affinityCount conexiones'),
+                      NodeStat('PESO', node.confidence?.toStringAsFixed(2) ?? '—'),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          // Overlays are purely informational (no controls of their own on
+          // this screen) — IgnorePointer lets taps on a node that happens
+          // to render underneath one reach the canvas instead of the
+          // overlay's opaque paint absorbing the hit.
+          Positioned(
+            top: 12,
+            right: 12,
+            child: IgnorePointer(child: HudStatusBadge(status: graphStatus)),
+          ),
+          if (lowConfidenceFuentes.isNotEmpty)
+            Positioned(
+              top: 52,
+              right: 12,
+              left: 12,
+              child: IgnorePointer(
+                child: HudHazardBanner(
+                  status: HudStatus.precaucion,
+                  glyph: '注意',
+                  title:
+                      'FUENTE ${codeOf[lowConfidenceFuentes.first.id]} CON CONFIANZA BAJA '
+                      '(${lowConfidenceFuentes.first.confidence!.toStringAsFixed(2)})',
+                  subtitle: 'Revisar antes de derivar conceptos desde aquí.',
+                ),
+              ),
             ),
-          );
-        },
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: IgnorePointer(
+              child: GraphLegend(
+                shapes: [
+                  GraphLegendShape(kind: NodeShapeKind.hexagon, label: 'FUENTE', color: c.unit),
+                  GraphLegendShape(kind: NodeShapeKind.circle, label: 'CONCEPTO', color: c.struct),
+                ],
+                lines: [
+                  GraphLegendLine(label: 'AFINIDAD FUERTE', dashed: false, color: c.data),
+                  GraphLegendLine(label: 'AFINIDAD DÉBIL', dashed: true, color: c.data),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

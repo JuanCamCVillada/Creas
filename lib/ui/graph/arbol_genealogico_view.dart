@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import '../../models/creative_graph.dart';
 import '../../models/lineage_edge.dart';
 import '../../models/node.dart' as model;
+import '../theme/hud_alerts.dart';
 import '../theme/hud_tokens.dart';
 import '../theme/hud_text.dart';
 import 'canvas/graph_canvas.dart';
+import 'canvas/graph_legend.dart';
 import 'canvas/lineage_layout.dart';
 import 'canvas/node_cell.dart';
 import 'canvas/node_shapes.dart';
@@ -141,59 +143,174 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
         ? 0
         : generations.values.reduce((a, b) => a > b ? a : b);
 
+    // First incoming verified-lineage edge per target, used to trace one
+    // upstream path back to a source for the detail sheet's "LINAJE"
+    // breadcrumb. Deterministic (first match in edge order); the graph is
+    // acyclic (graph_verifier.dart), so walking parents always terminates.
+    final firstParentEdge = <String, LineageEdge>{};
+    for (final edge in graph.edges) {
+      firstParentEdge.putIfAbsent(edge.target, () => edge);
+    }
+    List<String> linajeFor(String id) {
+      final chain = <String>[];
+      var current = id;
+      while (true) {
+        final node = nodesById[current];
+        if (node != null) chain.add('${codeOf[current]} ${node.label}');
+        final parent = firstParentEdge[current];
+        if (parent == null || !nodesById.containsKey(parent.source)) break;
+        current = parent.source;
+      }
+      return chain.reversed.toList();
+    }
+
+    final lowConfidenceFuentes = visibleNodes
+        .where((n) =>
+            n.type == model.NodeType.fuente &&
+            n.confidence != null &&
+            n.confidence! < 0.5)
+        .toList();
+    final graphStatus =
+        lowConfidenceFuentes.isEmpty ? HudStatus.nominal : HudStatus.precaucion;
+
     return Container(
       color: c.bg,
-      child: GraphCanvas(
-        nodeIds: nodeIds,
-        initialPositions: positions,
-        edges: canvasEdges,
-        nodeSize: _nodeCellSize,
-        edgeColor: c.data,
-        nodeBuilder: (context, id) {
-          if (id == _rootId) {
-            return _RootCell();
-          }
-          final node = nodesById[id]!;
-          final kind = kindOf[id]!;
+      child: Stack(
+        children: [
+          GraphCanvas(
+            nodeIds: nodeIds,
+            initialPositions: positions,
+            edges: canvasEdges,
+            nodeSize: _nodeCellSize,
+            edgeColor: c.data,
+            nodeBuilder: (context, id) {
+              if (id == _rootId) {
+                return _RootCell();
+              }
+              final node = nodesById[id]!;
+              final kind = kindOf[id]!;
 
-          final NodeShapeKind shapeKind;
-          final Color fill;
-          switch (kind) {
-            case _NodeKind.fuente:
-              shapeKind = NodeShapeKind.hexagon;
-              fill = c.unit;
-            case _NodeKind.turningPoint:
-              shapeKind = NodeShapeKind.diamond;
-              fill = c.sys;
-            case _NodeKind.sink:
-              shapeKind = NodeShapeKind.doubleRing;
-              fill = c.struct;
-            case _NodeKind.concepto:
-              shapeKind = NodeShapeKind.circle;
-              fill = c.struct;
-          }
+              final NodeShapeKind shapeKind;
+              final Color fill;
+              final String kindLabel;
+              final String glyph;
+              switch (kind) {
+                case _NodeKind.fuente:
+                  shapeKind = NodeShapeKind.hexagon;
+                  fill = c.unit;
+                  kindLabel = 'FUENTE';
+                  glyph = '源';
+                case _NodeKind.turningPoint:
+                  shapeKind = NodeShapeKind.diamond;
+                  fill = c.sys;
+                  kindLabel = 'PUNTO DE INFLEXIÓN';
+                  glyph = '転機';
+                case _NodeKind.sink:
+                  shapeKind = NodeShapeKind.doubleRing;
+                  fill = c.struct;
+                  kindLabel = 'SÍNTESIS';
+                  glyph = '合';
+                case _NodeKind.concepto:
+                  shapeKind = NodeShapeKind.circle;
+                  fill = c.struct;
+                  kindLabel = 'CONCEPTO';
+                  glyph = '概';
+              }
 
-          return GraphNodeCell(
-            label: node.label,
-            cluster: node.cluster,
-            code: codeOf[id]!,
-            shapeKind: shapeKind,
-            fill: fill,
-            icon: iconForNode(node),
-            isSugerido: node.origin == model.NodeOrigin.sugerido,
-            generationLabel: 'G${generations[id]! - maxGeneration}',
-            hasTurningPoint: turningPointIds.contains(id),
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              builder: (_) => NodeDetailSheet(node: node),
+              final incoming = graph.edges.where((e) => e.target == id);
+              final incomingFuentes = incoming
+                  .where((e) => nodesById[e.source]?.type == model.NodeType.fuente)
+                  .length;
+              final incomingConceptos = incoming
+                  .where((e) => nodesById[e.source]?.type == model.NodeType.concepto)
+                  .length;
+              final outgoing = graph.edges.where((e) => e.source == id).length;
+
+              return GraphNodeCell(
+                label: node.label,
+                cluster: node.cluster,
+                code: codeOf[id]!,
+                shapeKind: shapeKind,
+                fill: fill,
+                icon: iconForNode(node),
+                isSugerido: node.origin == model.NodeOrigin.sugerido,
+                generationLabel: 'G${generations[id]! - maxGeneration}',
+                hasTurningPoint: turningPointIds.contains(id),
+                onTap: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => NodeDetailSheet(
+                    node: node,
+                    code: codeOf[id],
+                    kindLabel: kindLabel,
+                    glyph: glyph,
+                    linaje: linajeFor(id),
+                    turningPoint: kind == _NodeKind.turningPoint
+                        ? graph.turningPoints.firstWhere((tp) => tp.nodeId == id)
+                        : null,
+                    stats: [
+                      NodeStat('GENERACIÓN', 'G${generations[id]! - maxGeneration}'),
+                      NodeStat('ASCENDENCIA', '$incomingConceptos C · $incomingFuentes F'),
+                      NodeStat('DESCENDENCIA', '$outgoing nodos'),
+                      NodeStat('PESO', node.confidence?.toStringAsFixed(2) ?? '—'),
+                    ],
+                  ),
+                ),
+                onTurningPointTap: () => _showEvidence(evidenceByNodeId[id] ?? ''),
+                onAccept: node.origin == model.NodeOrigin.sugerido ? () {} : null,
+                onReject: node.origin == model.NodeOrigin.sugerido
+                    ? () => setState(() => _rejectedIds.add(id))
+                    : null,
+              );
+            },
+          ),
+          // Overlays are purely informational (no controls of their own on
+          // this screen) — IgnorePointer lets taps on a node that happens
+          // to render underneath one reach the canvas instead of the
+          // overlay's opaque paint absorbing the hit.
+          Positioned(
+            top: 12,
+            right: 12,
+            child: IgnorePointer(child: HudStatusBadge(status: graphStatus)),
+          ),
+          if (lowConfidenceFuentes.isNotEmpty)
+            Positioned(
+              top: 52,
+              right: 12,
+              left: 12,
+              child: IgnorePointer(
+                child: HudHazardBanner(
+                  status: HudStatus.precaucion,
+                  glyph: '注意',
+                  title:
+                      'FUENTE ${codeOf[lowConfidenceFuentes.first.id]} CON CONFIANZA BAJA '
+                      '(${lowConfidenceFuentes.first.confidence!.toStringAsFixed(2)})',
+                  subtitle: 'Revisar antes de derivar conceptos desde aquí.',
+                ),
+              ),
             ),
-            onTurningPointTap: () => _showEvidence(evidenceByNodeId[id] ?? ''),
-            onAccept: node.origin == model.NodeOrigin.sugerido ? () {} : null,
-            onReject: node.origin == model.NodeOrigin.sugerido
-                ? () => setState(() => _rejectedIds.add(id))
-                : null,
-          );
-        },
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: IgnorePointer(
+              child: GraphLegend(
+                shapes: [
+                  GraphLegendShape(kind: NodeShapeKind.hexagon, label: 'FUENTE', color: c.unit),
+                  GraphLegendShape(kind: NodeShapeKind.circle, label: 'CONCEPTO', color: c.struct),
+                  GraphLegendShape(
+                      kind: NodeShapeKind.diamond, label: 'INFLEXIÓN', color: c.sys),
+                  GraphLegendShape(
+                      kind: NodeShapeKind.doubleRing, label: 'SÍNTESIS', color: c.struct),
+                ],
+                lines: [
+                  GraphLegendLine(label: 'LINAJE VERIFICADO', dashed: false, color: c.data),
+                  GraphLegendLine(
+                      label: 'REFERENTE / INFLUENCIA DÉBIL', dashed: true, color: c.data),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../engine/graph_generator.dart';
 import '../../storage/session_store.dart';
+import '../theme/hud_alerts.dart';
 import '../theme/hud_tokens.dart';
 import '../theme/hud_text.dart';
 import '../theme/hud_widgets.dart';
@@ -61,30 +62,20 @@ class _InputScreenState extends State<InputScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_error != null) ...[
-              HudChamferedBox(
-                fill: c.bg,
-                borderColor: c.deny,
-                borderWidth: 2,
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: c.deny, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'ALERTA: $_error',
-                        style: HudText.terminal(c.text2, size: 12),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => setState(() => _error = null),
-                      child: Text('CERRAR', style: HudText.operativa(c.deny, size: 12)),
-                    ),
-                    TextButton(
-                      onPressed: _loading ? null : _generate,
-                      child: Text('REINTENTAR', style: HudText.operativa(c.sys, size: 12)),
-                    ),
-                  ],
-                ),
+              HudHazardBanner(
+                status: HudStatus.emergencia,
+                glyph: '警報',
+                title: 'ALERTA: $_error',
+                actions: [
+                  TextButton(
+                    onPressed: () => setState(() => _error = null),
+                    child: Text('CERRAR', style: HudText.operativa(c.deny, size: 12)),
+                  ),
+                  TextButton(
+                    onPressed: _loading ? null : _generate,
+                    child: Text('REINTENTAR', style: HudText.operativa(c.sys, size: 12)),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
             ],

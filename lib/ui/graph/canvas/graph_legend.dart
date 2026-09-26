@@ -28,29 +28,48 @@ class GraphLegendLine {
 /// canvas, so a first-time reader isn't left guessing what a hexagon or a
 /// dashed edge means.
 class GraphLegend extends StatelessWidget {
-  const GraphLegend({super.key, required this.shapes, required this.lines});
+  const GraphLegend({super.key, required this.shapes, required this.lines, this.fullWidth = false});
 
   final List<GraphLegendShape> shapes;
   final List<GraphLegendLine> lines;
 
+  /// true on the wide dashboard layout, where the legend is a flat bar
+  /// spanning the whole center column (matching the reference screens'
+  /// bottom key) instead of a floating box in a corner of the canvas.
+  final bool fullWidth;
+
   @override
   Widget build(BuildContext context) {
     final c = HudColors.consola;
+    final entries = Wrap(
+      spacing: 16,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final shape in shapes) _shapeEntry(c, shape),
+        for (final line in lines) _lineEntry(c, line),
+      ],
+    );
+
+    if (fullWidth) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: c.panel,
+          border: Border(top: BorderSide(color: c.grid)),
+        ),
+        child: entries,
+      );
+    }
+
     return HudChamferedBox(
       fill: c.panel.withValues(alpha: 0.92),
       borderColor: c.grid,
       borderWidth: 1,
       chamfer: 6,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          for (final shape in shapes) _shapeEntry(c, shape),
-          for (final line in lines) _lineEntry(c, line),
-        ],
-      ),
+      child: entries,
     );
   }
 

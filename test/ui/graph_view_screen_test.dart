@@ -79,4 +79,37 @@ void main() {
 
     expect(find.textContaining('¿Quién te enseñó esto?'), findsOneWidget);
   });
+
+  group('wide (desktop/web) layout', () {
+    Future<void> pumpWide(WidgetTester tester, GraphSession session) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(MaterialApp(home: GraphViewScreen(session: session)));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('renders the persistent 3-column dashboard with real stats', (tester) async {
+      await pumpWide(tester, _sessionWithNode());
+
+      // Left stats panel: real counts from the graph, not placeholders.
+      expect(find.text('NODOS'), findsOneWidget);
+      expect(find.text('ARISTAS'), findsOneWidget);
+      expect(find.text('2'), findsWidgets); // NODOS = 2
+      expect(find.text('1'), findsWidgets); // ARISTAS / GENERACIONES = 1
+
+      // Right panel starts empty until a node is selected.
+      expect(find.text('SELECCIONA UN NODO'), findsOneWidget);
+    });
+
+    testWidgets('tapping a node fills the right panel instead of opening a modal',
+        (tester) async {
+      await pumpWide(tester, _sessionWithNode());
+
+      await tester.tap(find.text('Cache manual').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('SELECCIONA UN NODO'), findsNothing);
+      expect(find.textContaining('CONCEPTO'), findsWidgets);
+    });
+  });
 }

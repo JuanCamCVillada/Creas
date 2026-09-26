@@ -186,6 +186,52 @@ class HudReadout extends StatelessWidget {
   }
 }
 
+/// Segmented tab control — a filled rectangle for the active tab, a plain
+/// label for the rest, matching the reference HUD screens' "01 GRAFO / 02
+/// FUENTES" tab strip instead of Material's underline indicator. Purely a
+/// selector: it holds no state of its own, so it drives whatever the
+/// caller uses for the actual page switch (a TabController, a index in
+/// State, …).
+class HudSegmentedTabs extends StatelessWidget {
+  const HudSegmentedTabs({
+    super.key,
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = HudColors.consola;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < labels.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          InkWell(
+            onTap: () => onSelected(i),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: i == selectedIndex ? c.sys : Colors.transparent,
+                border: Border.all(color: i == selectedIndex ? c.sys : c.grid),
+              ),
+              child: Text(
+                labels[i],
+                style: HudText.operativa(i == selectedIndex ? c.bg : c.textDim, size: 13),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// Barra de sincronización: reemplaza los spinners genéricos.
 /// Indeterminate here since the app has no real progress signal to report —
 /// showing a fake percentage would be dishonest (loading.md: determinate

@@ -23,6 +23,7 @@ class GraphNodeCell extends StatelessWidget {
     required this.onTap,
     this.isSugerido = false,
     this.generationLabel,
+    this.glow = false,
     this.hasTurningPoint = false,
     this.onTurningPointTap,
     this.onAccept,
@@ -41,6 +42,11 @@ class GraphNodeCell extends StatelessWidget {
   /// e.g. "G-2" — shown above the shape. Only meaningful for a directed,
   /// generational layout (Árbol); omitted (null) in Jardín Digital.
   final String? generationLabel;
+
+  /// A soft halo behind the shape — reserved for the nodes a screen wants
+  /// to draw the eye to (a turning point, a synthesis sink), not applied
+  /// to every cell.
+  final bool glow;
 
   final bool hasTurningPoint;
   final VoidCallback? onTurningPointTap;
@@ -63,6 +69,7 @@ class GraphNodeCell extends StatelessWidget {
             fill: fill,
             border: isSugerido ? c.text2 : fill,
             dashedBorder: isSugerido,
+            glow: glow,
             child: Icon(icon, size: 16, color: c.text),
           ),
           const SizedBox(height: 4),

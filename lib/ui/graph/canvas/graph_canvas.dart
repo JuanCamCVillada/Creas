@@ -176,14 +176,46 @@ class _EdgePainter extends CustomPainter {
       final path = Path()
         ..moveTo(from.dx, from.dy)
         ..cubicTo(from.dx + pull, from.dy, to.dx - pull, to.dy, to.dx, to.dy);
+      final drawnPath = edge.dashed ? _dashed(path) : path;
+      final edgeColor = edge.color ?? color;
+
+      // A wider, blurred stroke under the crisp one gives the connector a
+      // neon glow instead of a flat line — cheap to draw (one extra
+      // drawPath) and reads as "alive" the way the reference HUD screens
+      // do, rather than looking like a plain vector diagram.
+      final glowPaint = Paint()
+        ..color = edgeColor.withValues(alpha: edge.dashed ? 0.18 : 0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = edge.dashed ? 5 : 7
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawPath(drawnPath, glowPaint);
 
       final paint = Paint()
-        ..color = (edge.color ?? color).withValues(alpha: edge.dashed ? 0.5 : 0.85)
+        ..color = edgeColor.withValues(alpha: edge.dashed ? 0.5 : 0.85)
         ..style = PaintingStyle.stroke
         ..strokeWidth = edge.dashed ? 1.4 : 2.2
         ..strokeCap = StrokeCap.round;
+      canvas.drawPath(drawnPath, paint);
 
-      canvas.drawPath(edge.dashed ? _dashed(path) : path, paint);
+      // A small "+" at the path's midpoint, echoing the reference screens'
+      // junction ticks along each connector — purely typographic flavor,
+      // dim enough to never compete with the line or the nodes it joins.
+      _drawPlusMark(canvas, path, edgeColor);
+    }
+  }
+
+  void _drawPlusMark(Canvas canvas, Path path, Color edgeColor) {
+    for (final metric in path.computeMetrics()) {
+      final tangent = metric.getTangentForOffset(metric.length / 2);
+      if (tangent == null) continue;
+      final p = tangent.position;
+      final markPaint = Paint()
+        ..color = edgeColor.withValues(alpha: 0.55)
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(p + const Offset(-4, 0), p + const Offset(4, 0), markPaint);
+      canvas.drawLine(p + const Offset(0, -4), p + const Offset(0, 4), markPaint);
     }
   }
 

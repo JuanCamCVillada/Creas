@@ -23,9 +23,46 @@ const _rowSpacing = 150.0;
 enum _NodeKind { fuente, turningPoint, sink, concepto }
 
 class ArbolGenealogicoView extends StatefulWidget {
-  const ArbolGenealogicoView({super.key, required this.graph});
+  const ArbolGenealogicoView({
+    super.key,
+    required this.graph,
+    this.showAffinity = false,
+    this.onNodeSelected,
+    this.showLegend = true,
+  });
 
   final CreativeGraph graph;
+
+  /// false on the wide dashboard layout, which renders its own full-width
+  /// legend bar below the canvas instead (via [legendShapes]/[legendLines])
+  /// — avoids showing the key twice.
+  final bool showLegend;
+
+  static List<GraphLegendShape> legendShapes(HudColors c) => [
+        GraphLegendShape(kind: NodeShapeKind.hexagon, label: 'FUENTE', color: c.unit),
+        GraphLegendShape(kind: NodeShapeKind.circle, label: 'CONCEPTO', color: c.struct),
+        GraphLegendShape(kind: NodeShapeKind.diamond, label: 'INFLEXIÓN', color: c.sys),
+        GraphLegendShape(kind: NodeShapeKind.doubleRing, label: 'SÍNTESIS', color: c.struct),
+      ];
+
+  static List<GraphLegendLine> legendLines(HudColors c, {required bool showAffinity}) => [
+        GraphLegendLine(label: 'LINAJE VERIFICADO', dashed: false, color: c.data),
+        GraphLegendLine(label: 'REFERENTE / INFLUENCIA DÉBIL', dashed: true, color: c.data),
+        if (showAffinity) GraphLegendLine(label: 'AFINIDAD (JARDÍN)', dashed: true, color: c.contrast),
+      ];
+
+  /// CONECTAR mode: overlays Jardín Digital's affinity edges (magenta,
+  /// dashed) on top of the same generation-column layout, fusing the
+  /// directed lineage tree with the undirected exploratory connections
+  /// instead of showing them as two separate views.
+  final bool showAffinity;
+
+  /// On a wide (desktop/web) layout, GraphViewScreen renders a persistent
+  /// detail panel instead of a modal sheet — passing this makes a node tap
+  /// hand the built [NodeDetailSheet] up to that panel instead of opening
+  /// a bottom sheet. Null (the default, used on narrow/mobile layouts)
+  /// keeps the modal behavior.
+  final ValueChanged<Widget>? onNodeSelected;
 
   @override
   State<ArbolGenealogicoView> createState() => _ArbolGenealogicoViewState();
@@ -130,6 +167,9 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
       }
     }
 
+    final lineagePairs = <String>{
+      for (final (from, to, _) in displayEdges) '$from|$to',
+    };
     final canvasEdges = [
       for (final (from, to, relation) in displayEdges)
         GraphCanvasEdge(
@@ -137,6 +177,18 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
           toId: to,
           dashed: relation == null || relation == LineageRelation.inspira,
         ),
+      if (widget.showAffinity)
+        for (final edge in graph.affinityEdges)
+          if (nodesById.containsKey(edge.source) &&
+              nodesById.containsKey(edge.target) &&
+              !lineagePairs.contains('${edge.source}|${edge.target}') &&
+              !lineagePairs.contains('${edge.target}|${edge.source}'))
+            GraphCanvasEdge(
+              fromId: edge.source,
+              toId: edge.target,
+              dashed: true,
+              color: c.contrast.withValues(alpha: 0.3 + edge.weight.clamp(0, 1) * 0.4),
+            ),
     ];
 
     final maxGeneration = generations.values.isEmpty
@@ -235,11 +287,10 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
                 icon: iconForNode(node),
                 isSugerido: node.origin == model.NodeOrigin.sugerido,
                 generationLabel: 'G${generations[id]! - maxGeneration}',
+                glow: kind == _NodeKind.turningPoint || kind == _NodeKind.sink,
                 hasTurningPoint: turningPointIds.contains(id),
-                onTap: () => showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => NodeDetailSheet(
+                onTap: () {
+                  final detail = NodeDetailSheet(
                     node: node,
                     code: codeOf[id],
                     kindLabel: kindLabel,
@@ -254,8 +305,17 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
                       NodeStat('DESCENDENCIA', '$outgoing nodos'),
                       NodeStat('PESO', node.confidence?.toStringAsFixed(2) ?? '—'),
                     ],
-                  ),
-                ),
+                  );
+                  if (widget.onNodeSelected != null) {
+                    widget.onNodeSelected!(detail);
+                  } else {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => detail,
+                    );
+                  }
+                },
                 onTurningPointTap: () => _showEvidence(evidenceByNodeId[id] ?? ''),
                 onAccept: node.origin == model.NodeOrigin.sugerido ? () {} : null,
                 onReject: node.origin == model.NodeOrigin.sugerido
@@ -289,27 +349,17 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
                 ),
               ),
             ),
-          Positioned(
-            left: 12,
-            bottom: 12,
-            child: IgnorePointer(
-              child: GraphLegend(
-                shapes: [
-                  GraphLegendShape(kind: NodeShapeKind.hexagon, label: 'FUENTE', color: c.unit),
-                  GraphLegendShape(kind: NodeShapeKind.circle, label: 'CONCEPTO', color: c.struct),
-                  GraphLegendShape(
-                      kind: NodeShapeKind.diamond, label: 'INFLEXIÓN', color: c.sys),
-                  GraphLegendShape(
-                      kind: NodeShapeKind.doubleRing, label: 'SÍNTESIS', color: c.struct),
-                ],
-                lines: [
-                  GraphLegendLine(label: 'LINAJE VERIFICADO', dashed: false, color: c.data),
-                  GraphLegendLine(
-                      label: 'REFERENTE / INFLUENCIA DÉBIL', dashed: true, color: c.data),
-                ],
+          if (widget.showLegend)
+            Positioned(
+              left: 12,
+              bottom: 12,
+              child: IgnorePointer(
+                child: GraphLegend(
+                  shapes: ArbolGenealogicoView.legendShapes(c),
+                  lines: ArbolGenealogicoView.legendLines(c, showAffinity: widget.showAffinity),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -330,6 +380,7 @@ class _RootCell extends StatelessWidget {
           size: 56,
           fill: c.id,
           border: c.id,
+          glow: true,
           child: Text('TÚ', style: HudText.operativa(c.bg, size: 14)),
         ),
       ],

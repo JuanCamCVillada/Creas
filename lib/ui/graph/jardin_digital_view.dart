@@ -1,13 +1,11 @@
 // lib/ui/graph/jardin_digital_view.dart
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../models/creative_graph.dart';
 import '../../models/node.dart' as model;
 import '../theme/hud_alerts.dart';
 import '../theme/hud_tokens.dart';
-import 'canvas/force_layout.dart';
+import 'canvas/cluster_layout.dart';
 import 'canvas/graph_canvas.dart';
 import 'canvas/graph_legend.dart';
 import 'canvas/node_cell.dart';
@@ -18,9 +16,36 @@ import 'node_icons.dart';
 const _nodeCellSize = Size(150, 132);
 
 class JardinDigitalView extends StatelessWidget {
-  const JardinDigitalView({super.key, required this.graph});
+  const JardinDigitalView({
+    super.key,
+    required this.graph,
+    this.onNodeSelected,
+    this.showLegend = true,
+  });
 
   final CreativeGraph graph;
+
+  /// On a wide (desktop/web) layout, GraphViewScreen renders a persistent
+  /// detail panel instead of a modal sheet — passing this makes a node tap
+  /// hand the built [NodeDetailSheet] up to that panel instead of opening
+  /// a bottom sheet. Null (the default, used on narrow/mobile layouts)
+  /// keeps the modal behavior.
+  final ValueChanged<Widget>? onNodeSelected;
+
+  /// false on the wide dashboard layout, which renders its own full-width
+  /// legend bar below the canvas instead (via [legendShapes]/[legendLines])
+  /// — avoids showing the key twice.
+  final bool showLegend;
+
+  static List<GraphLegendShape> legendShapes(HudColors c) => [
+        GraphLegendShape(kind: NodeShapeKind.hexagon, label: 'FUENTE', color: c.unit),
+        GraphLegendShape(kind: NodeShapeKind.circle, label: 'CONCEPTO', color: c.struct),
+      ];
+
+  static List<GraphLegendLine> legendLines(HudColors c) => [
+        GraphLegendLine(label: 'AFINIDAD FUERTE', dashed: false, color: c.data),
+        GraphLegendLine(label: 'AFINIDAD DÉBIL', dashed: true, color: c.data),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -44,28 +69,21 @@ class JardinDigitalView extends StatelessWidget {
     }
 
     // Same rendering engine as Árbol Genealógico (GraphCanvas + shared
-    // GraphNodeCell), but a different layout: Jardín is an undirected
-    // exploratory map, so nodes are relaxed by their real affinity_weight
-    // instead of assigned to generational columns — strongly related nodes
-    // end up near each other, loose fragments spread out on their own.
-    // Never let the algorithm's equilibrium spacing settle below the node
-    // cell's own footprint — otherwise chips visually overlap even when
-    // their center positions aren't exactly coincident.
-    final minSeparation = math.max(_nodeCellSize.width, _nodeCellSize.height) * 1.5;
-    // Size the starting area so it's already consistent with that spacing
-    // (area ≈ minSeparation² × n) — an area sized for a smaller equilibrium
-    // distance forces every node to travel far beyond its seed position to
-    // reach minSeparation, which can push a small graph well outside any
-    // fixed viewport.
-    final span = minSeparation * math.sqrt(graph.nodes.length);
-    final positions = computeForceLayout(
+    // GraphNodeCell), but a different layout: nodes sharing a real
+    // affinity_weight edge are organized into clean columns by cluster —
+    // the same tidy row/column look as the generation columns in Árbol —
+    // while nodes with no affinity edge at all orbit that connected mass
+    // further out, like loose planets, instead of being scattered at
+    // random or forced to overlap it.
+    final connectedIds = <String>{
+      for (final edge in graph.affinityEdges) ...[edge.source, edge.target],
+    };
+    final positions = computeClusterOrbitLayout(
       nodeIds: graph.nodes.map((n) => n.id).toList(),
-      edges: [
+      clusterOf: {for (final node in graph.nodes) node.id: node.cluster},
+      affinityEdges: [
         for (final edge in graph.affinityEdges) (edge.source, edge.target, edge.weight),
       ],
-      width: span,
-      height: span,
-      minSeparation: minSeparation,
     );
 
     final edges = [
@@ -111,10 +129,9 @@ class JardinDigitalView extends StatelessWidget {
                 fill: isFuente ? c.unit : c.struct,
                 icon: iconForNode(node),
                 isSugerido: node.origin == model.NodeOrigin.sugerido,
-                onTap: () => showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => NodeDetailSheet(
+                generationLabel: connectedIds.contains(id) ? null : '· SUELTO ·',
+                onTap: () {
+                  final detail = NodeDetailSheet(
                     node: node,
                     code: codeOf[id],
                     kindLabel: isFuente ? 'FUENTE' : 'CONCEPTO',
@@ -123,8 +140,17 @@ class JardinDigitalView extends StatelessWidget {
                       NodeStat('AFINIDADES', '$affinityCount conexiones'),
                       NodeStat('PESO', node.confidence?.toStringAsFixed(2) ?? '—'),
                     ],
-                  ),
-                ),
+                  );
+                  if (onNodeSelected != null) {
+                    onNodeSelected!(detail);
+                  } else {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => detail,
+                    );
+                  }
+                },
               );
             },
           ),
@@ -153,22 +179,17 @@ class JardinDigitalView extends StatelessWidget {
                 ),
               ),
             ),
-          Positioned(
-            left: 12,
-            bottom: 12,
-            child: IgnorePointer(
-              child: GraphLegend(
-                shapes: [
-                  GraphLegendShape(kind: NodeShapeKind.hexagon, label: 'FUENTE', color: c.unit),
-                  GraphLegendShape(kind: NodeShapeKind.circle, label: 'CONCEPTO', color: c.struct),
-                ],
-                lines: [
-                  GraphLegendLine(label: 'AFINIDAD FUERTE', dashed: false, color: c.data),
-                  GraphLegendLine(label: 'AFINIDAD DÉBIL', dashed: true, color: c.data),
-                ],
+          if (showLegend)
+            Positioned(
+              left: 12,
+              bottom: 12,
+              child: IgnorePointer(
+                child: GraphLegend(
+                  shapes: JardinDigitalView.legendShapes(c),
+                  lines: JardinDigitalView.legendLines(c),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

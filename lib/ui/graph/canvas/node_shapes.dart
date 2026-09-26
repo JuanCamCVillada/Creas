@@ -16,6 +16,7 @@ class NodeShape extends StatelessWidget {
     required this.border,
     this.dashedBorder = false,
     this.borderWidth = 2,
+    this.glow = false,
     required this.child,
   });
 
@@ -25,6 +26,11 @@ class NodeShape extends StatelessWidget {
   final Color border;
   final bool dashedBorder;
   final double borderWidth;
+
+  /// A soft blurred halo behind the shape — reserved for nodes the HUD
+  /// wants to draw the eye to (a turning point, a synthesis sink), never
+  /// applied uniformly, or every node would compete for attention at once.
+  final bool glow;
   final Widget child;
 
   @override
@@ -39,6 +45,7 @@ class NodeShape extends StatelessWidget {
           border: border,
           dashedBorder: dashedBorder,
           borderWidth: borderWidth,
+          glow: glow,
         ),
         child: Center(child: child),
       ),
@@ -53,6 +60,7 @@ class _ShapePainter extends CustomPainter {
     required this.border,
     required this.dashedBorder,
     required this.borderWidth,
+    this.glow = false,
   });
 
   final NodeShapeKind kind;
@@ -60,6 +68,7 @@ class _ShapePainter extends CustomPainter {
   final Color border;
   final bool dashedBorder;
   final double borderWidth;
+  final bool glow;
 
   Path _hexagon(Size size) {
     final cx = size.width / 2, cy = size.height / 2, r = size.width / 2;
@@ -102,6 +111,14 @@ class _ShapePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (glow) {
+      final glowPaint = Paint()
+        ..color = border.withValues(alpha: 0.55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      final center = Offset(size.width / 2, size.height / 2);
+      canvas.drawCircle(center, size.width / 2 + 2, glowPaint);
+    }
+
     final fillPaint = Paint()..color = fill..style = PaintingStyle.fill;
     final borderPaint = Paint()
       ..color = border
@@ -139,5 +156,6 @@ class _ShapePainter extends CustomPainter {
       oldDelegate.kind != kind ||
       oldDelegate.fill != fill ||
       oldDelegate.border != border ||
-      oldDelegate.dashedBorder != dashedBorder;
+      oldDelegate.dashedBorder != dashedBorder ||
+      oldDelegate.glow != glow;
 }

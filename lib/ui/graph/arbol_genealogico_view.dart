@@ -8,17 +8,17 @@ import '../theme/hud_tokens.dart';
 import '../theme/hud_text.dart';
 import 'canvas/graph_canvas.dart';
 import 'canvas/lineage_layout.dart';
+import 'canvas/node_cell.dart';
 import 'canvas/node_shapes.dart';
 import 'node_detail_sheet.dart';
 import 'node_icons.dart';
-import 'turning_point_badge.dart';
 
 const _rootId = 'root-tu';
 const _nodeCellSize = Size(150, 156);
 const _columnSpacing = 210.0;
 const _rowSpacing = 150.0;
 
-enum _NodeKind { root, fuente, turningPoint, sink, concepto }
+enum _NodeKind { fuente, turningPoint, sink, concepto }
 
 class ArbolGenealogicoView extends StatefulWidget {
   const ArbolGenealogicoView({super.key, required this.graph});
@@ -137,6 +137,10 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
         ),
     ];
 
+    final maxGeneration = generations.values.isEmpty
+        ? 0
+        : generations.values.reduce((a, b) => a > b ? a : b);
+
     return Container(
       color: c.bg,
       child: GraphCanvas(
@@ -150,13 +154,34 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
             return _RootCell();
           }
           final node = nodesById[id]!;
-          return _LineageNodeCell(
-            node: node,
-            kind: kindOf[id]!,
+          final kind = kindOf[id]!;
+
+          final NodeShapeKind shapeKind;
+          final Color fill;
+          switch (kind) {
+            case _NodeKind.fuente:
+              shapeKind = NodeShapeKind.hexagon;
+              fill = c.unit;
+            case _NodeKind.turningPoint:
+              shapeKind = NodeShapeKind.diamond;
+              fill = c.sys;
+            case _NodeKind.sink:
+              shapeKind = NodeShapeKind.doubleRing;
+              fill = c.struct;
+            case _NodeKind.concepto:
+              shapeKind = NodeShapeKind.circle;
+              fill = c.struct;
+          }
+
+          return GraphNodeCell(
+            label: node.label,
+            cluster: node.cluster,
             code: codeOf[id]!,
-            generation: generations[id]! - (generations.values.isEmpty
-                ? 0
-                : generations.values.reduce((a, b) => a > b ? a : b)),
+            shapeKind: shapeKind,
+            fill: fill,
+            icon: iconForNode(node),
+            isSugerido: node.origin == model.NodeOrigin.sugerido,
+            generationLabel: 'G${generations[id]! - maxGeneration}',
             hasTurningPoint: turningPointIds.contains(id),
             onTap: () => showModalBottomSheet<void>(
               context: context,
@@ -191,123 +216,6 @@ class _RootCell extends StatelessWidget {
           child: Text('TÚ', style: HudText.operativa(c.bg, size: 14)),
         ),
       ],
-    );
-  }
-}
-
-class _LineageNodeCell extends StatelessWidget {
-  const _LineageNodeCell({
-    required this.node,
-    required this.kind,
-    required this.code,
-    required this.generation,
-    required this.hasTurningPoint,
-    required this.onTap,
-    required this.onTurningPointTap,
-    this.onAccept,
-    this.onReject,
-  });
-
-  final model.Node node;
-  final _NodeKind kind;
-  final String code;
-  final int generation;
-  final bool hasTurningPoint;
-  final VoidCallback onTap;
-  final VoidCallback onTurningPointTap;
-  final VoidCallback? onAccept;
-  final VoidCallback? onReject;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = HudColors.consola;
-    final isSugerido = node.origin == model.NodeOrigin.sugerido;
-
-    final NodeShapeKind shapeKind;
-    final Color fill;
-    switch (kind) {
-      case _NodeKind.fuente:
-        shapeKind = NodeShapeKind.hexagon;
-        fill = c.unit;
-      case _NodeKind.turningPoint:
-        shapeKind = NodeShapeKind.diamond;
-        fill = c.sys;
-      case _NodeKind.sink:
-        shapeKind = NodeShapeKind.doubleRing;
-        fill = c.struct;
-      case _NodeKind.concepto:
-      case _NodeKind.root:
-        shapeKind = NodeShapeKind.circle;
-        fill = c.struct;
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('G${generation.toString()}', style: HudText.terminal(c.textDim, size: 9)),
-          NodeShape(
-            kind: shapeKind,
-            size: 52,
-            fill: fill,
-            border: isSugerido ? c.text2 : fill,
-            dashedBorder: isSugerido,
-            child: Icon(iconForNode(node), size: 16, color: c.text),
-          ),
-          const SizedBox(height: 4),
-          Text(code, style: HudText.terminal(c.id, size: 10)),
-          Text(
-            node.label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: c.text, fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          Text(
-            node.cluster,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: HudText.terminal(c.textDim, size: 9),
-          ),
-          if (hasTurningPoint || onAccept != null || onReject != null)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasTurningPoint)
-                  TurningPointBadge(onTap: onTurningPointTap),
-                if (onAccept != null)
-                  _HitTarget(
-                    onTap: onAccept!,
-                    child: Icon(Icons.check, size: 14, color: c.signal),
-                  ),
-                if (onReject != null)
-                  _HitTarget(
-                    onTap: onReject!,
-                    child: Icon(Icons.close, size: 14, color: c.deny),
-                  ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Wraps a small icon control with the 28x28pt minimum tap target
-/// (accessibility.md § Mobility) without inflating its visible size.
-class _HitTarget extends StatelessWidget {
-  const _HitTarget({required this.onTap, required this.child});
-
-  final VoidCallback onTap;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(width: 28, height: 28, child: Center(child: child)),
     );
   }
 }

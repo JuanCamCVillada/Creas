@@ -90,11 +90,12 @@ class _InputScreenState extends State<InputScreen> {
             ],
             Text('ENTRADA:', style: HudText.operativa(c.text2, size: 12)),
             const SizedBox(height: 6),
-            Expanded(
+            SizedBox(
+              height: 220,
               child: HudChamferedBox(
                 fill: c.panel,
-                borderColor: c.grid,
-                borderWidth: 1,
+                borderColor: c.text,
+                borderWidth: 1.5,
                 padding: EdgeInsets.zero,
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -118,6 +119,7 @@ class _InputScreenState extends State<InputScreen> {
             _loading
                 ? const Center(child: HudSyncIndicator())
                 : HudButton(label: 'GENERAR', onPressed: _generate),
+            const Spacer(),
           ],
         ),
       ),

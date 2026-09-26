@@ -15,18 +15,42 @@ Map<String, Offset> computeForceLayout({
   int iterations = 300,
   double width = 900,
   double height = 700,
+  double? minSeparation,
 }) {
   if (nodeIds.isEmpty) return {};
 
   final area = width * height;
-  final k = math.sqrt(area / nodeIds.length);
+  // k is the algorithm's equilibrium spacing for two unconnected nodes.
+  // Deriving it purely from area/n can settle below a node's own rendered
+  // footprint for small graphs — [minSeparation] (typically the node
+  // widget's own size) is a floor so boxes never overlap even when they
+  // don't collide outright.
+  final k = math.max(math.sqrt(area / nodeIds.length), minSeparation ?? 0);
 
+  // The frame nodes are clamped to each iteration must be big enough to
+  // actually fit n nodes spaced k apart — when [minSeparation] pushes k
+  // above what the caller's width/height imply, clamping to the raw
+  // width/height would squeeze nodes back together and defeat
+  // minSeparation entirely. Grow the frame to whichever is larger.
+  final fitSpan = k * math.sqrt(nodeIds.length) * 1.2;
+  final frameWidth = math.max(width, fitSpan);
+  final frameHeight = math.max(height, fitSpan);
+
+  // Seed on a circle, one node per index — this guarantees every node
+  // starts at a strictly distinct point regardless of what its id hashes
+  // to. Seeding from id.hashCode instead let two ids whose hash collided
+  // (mod the seed grid) start exactly coincident; repulsion between two
+  // coincident points has an undefined direction (delta is Offset.zero),
+  // so they never separated and rendered stacked on top of each other.
+  final center = Offset(frameWidth / 2, frameHeight / 2);
+  final radius = math.min(frameWidth, frameHeight) * 0.35;
   final positions = <String, Offset>{
-    for (final id in nodeIds)
-      id: Offset(
-        (id.hashCode.abs() % 1000) / 1000 * width,
-        ((id.hashCode.abs() ~/ 1000) % 1000) / 1000 * height,
-      ),
+    for (var i = 0; i < nodeIds.length; i++)
+      nodeIds[i]: center +
+          Offset(
+            radius * math.cos(2 * math.pi * i / nodeIds.length),
+            radius * math.sin(2 * math.pi * i / nodeIds.length),
+          ),
   };
 
   final validEdges = [
@@ -34,7 +58,7 @@ Map<String, Offset> computeForceLayout({
       if (positions.containsKey(edge.$1) && positions.containsKey(edge.$2)) edge,
   ];
 
-  var temperature = width / 10;
+  var temperature = frameWidth / 10;
   for (var iter = 0; iter < iterations; iter++) {
     final displacement = {for (final id in nodeIds) id: Offset.zero};
 
@@ -63,9 +87,20 @@ Map<String, Offset> computeForceLayout({
     for (final id in nodeIds) {
       final disp = displacement[id]!;
       final dist = disp.distance;
+      var next = positions[id]!;
       if (dist > 0.01) {
-        positions[id] = positions[id]! + disp / dist * math.min(dist, temperature);
+        next = next + disp / dist * math.min(dist, temperature);
       }
+      // Classic Fruchterman–Reingold clips positions to the frame each
+      // iteration. Without this, repulsion between unconnected nodes has
+      // nothing to balance against (no centering/attractive force at long
+      // range), so the whole graph slowly drifts outward for the entire
+      // run instead of settling near k — the frame is what makes it an
+      // equilibrium instead of an unbounded expansion.
+      positions[id] = Offset(
+        next.dx.clamp(0.0, frameWidth),
+        next.dy.clamp(0.0, frameHeight),
+      );
     }
 
     temperature *= 0.95;

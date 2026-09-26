@@ -46,7 +46,16 @@ class JardinDigitalView extends StatelessWidget {
     // exploratory map, so nodes are relaxed by their real affinity_weight
     // instead of assigned to generational columns — strongly related nodes
     // end up near each other, loose fragments spread out on their own.
-    final span = 260.0 + 70.0 * math.sqrt(graph.nodes.length);
+    // Never let the algorithm's equilibrium spacing settle below the node
+    // cell's own footprint — otherwise chips visually overlap even when
+    // their center positions aren't exactly coincident.
+    final minSeparation = math.max(_nodeCellSize.width, _nodeCellSize.height) * 1.5;
+    // Size the starting area so it's already consistent with that spacing
+    // (area ≈ minSeparation² × n) — an area sized for a smaller equilibrium
+    // distance forces every node to travel far beyond its seed position to
+    // reach minSeparation, which can push a small graph well outside any
+    // fixed viewport.
+    final span = minSeparation * math.sqrt(graph.nodes.length);
     final positions = computeForceLayout(
       nodeIds: graph.nodes.map((n) => n.id).toList(),
       edges: [
@@ -54,6 +63,7 @@ class JardinDigitalView extends StatelessWidget {
       ],
       width: span,
       height: span,
+      minSeparation: minSeparation,
     );
 
     final edges = [

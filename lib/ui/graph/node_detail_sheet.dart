@@ -83,15 +83,23 @@ class NodeDetailSheet extends StatelessWidget {
                     if (code != null) HudIdBadge(label: code!),
                     if (code != null && kindLabel != null) const SizedBox(width: 10),
                     if (kindLabel != null)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (glyph != null) ...[
-                            Text(glyph!, style: HudText.operativa(c.data, size: 16)),
-                            const SizedBox(width: 6),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            if (glyph != null) ...[
+                              Text(glyph!, style: HudText.operativa(c.data, size: 16)),
+                              const SizedBox(width: 6),
+                            ],
+                            Flexible(
+                              child: Text(
+                                kindLabel!,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                style: HudText.operativa(c.text2, size: 12),
+                              ),
+                            ),
                           ],
-                          Text(kindLabel!, style: HudText.operativa(c.text2, size: 12)),
-                        ],
+                        ),
                       ),
                   ],
                 ),

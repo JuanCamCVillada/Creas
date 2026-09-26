@@ -49,24 +49,62 @@ class GraphCanvas extends StatefulWidget {
   State<GraphCanvas> createState() => _GraphCanvasState();
 }
 
+const _contentPadding = 100.0;
+
 class _GraphCanvasState extends State<GraphCanvas> {
   late Map<String, Offset> _positions;
+  late Offset _originOffset;
+  late Size _contentSize;
   final _transformController = TransformationController();
 
   @override
   void initState() {
     super.initState();
-    _positions = Map.of(widget.initialPositions);
+    _computeOrigin();
+    _positions = {
+      for (final entry in widget.initialPositions.entries)
+        entry.key: entry.value + _originOffset,
+    };
+  }
+
+  /// Positions coming from callers (a cluster hash-grid, a generation
+  /// column layout, …) can land anywhere, including far from the origin
+  /// or with a negative min. Shift everything so the content's bounding
+  /// box always starts near (0,0) — otherwise a graph can render entirely
+  /// outside the viewport's initial pan/zoom with no visible nodes at all.
+  void _computeOrigin() {
+    final raw = widget.initialPositions;
+    if (raw.isEmpty) {
+      _originOffset = const Offset(_contentPadding, _contentPadding);
+      _contentSize = widget.canvasSize;
+      return;
+    }
+    final xs = raw.values.map((o) => o.dx);
+    final ys = raw.values.map((o) => o.dy);
+    final minX = xs.reduce((a, b) => a < b ? a : b);
+    final minY = ys.reduce((a, b) => a < b ? a : b);
+    final maxX = xs.reduce((a, b) => a > b ? a : b);
+    final maxY = ys.reduce((a, b) => a > b ? a : b);
+    _originOffset = Offset(_contentPadding - minX, _contentPadding - minY);
+    final contentWidth = (maxX - minX) + _contentPadding * 2 + widget.nodeSize.width;
+    final contentHeight = (maxY - minY) + _contentPadding * 2 + widget.nodeSize.height;
+    _contentSize = Size(
+      contentWidth > widget.canvasSize.width ? contentWidth : widget.canvasSize.width,
+      contentHeight > widget.canvasSize.height ? contentHeight : widget.canvasSize.height,
+    );
   }
 
   @override
   void didUpdateWidget(covariant GraphCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Keep drags for nodes that are still present; adopt fresh positions
-    // for any node id that just appeared (e.g. after a rejection changed
-    // the visible set); drop ids that disappeared.
+    // Keep drags for nodes that are still present; adopt fresh (normalized)
+    // positions for any node id that just appeared (e.g. after a rejection
+    // changed the visible set); drop ids that disappeared.
     for (final id in widget.nodeIds) {
-      _positions.putIfAbsent(id, () => widget.initialPositions[id] ?? Offset.zero);
+      _positions.putIfAbsent(
+        id,
+        () => (widget.initialPositions[id] ?? Offset.zero) + _originOffset,
+      );
     }
     _positions.removeWhere((id, _) => !widget.nodeIds.contains(id));
   }
@@ -89,8 +127,8 @@ class _GraphCanvasState extends State<GraphCanvas> {
       maxScale: 2.5,
       boundaryMargin: const EdgeInsets.all(400),
       child: SizedBox(
-        width: widget.canvasSize.width,
-        height: widget.canvasSize.height,
+        width: _contentSize.width,
+        height: _contentSize.height,
         child: Stack(
           children: [
             Positioned.fill(

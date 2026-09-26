@@ -4,6 +4,8 @@ import 'package:graphview/GraphView.dart';
 
 import '../../models/creative_graph.dart';
 import '../../models/node.dart' as model;
+import '../theme/hud_tokens.dart';
+import '../theme/hud_widgets.dart';
 import 'node_detail_sheet.dart';
 import 'node_icons.dart';
 import 'turning_point_badge.dart';
@@ -23,15 +25,17 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
   final Set<String> _rejectedIds = {};
 
   void _showEvidence(String evidence) {
+    final c = HudColors.consola;
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Punto de inflexión'),
-        content: Text(evidence),
+        backgroundColor: c.panel,
+        title: Text('PUNTO DE INFLEXIÓN', style: TextStyle(color: c.caution)),
+        content: Text(evidence, style: TextStyle(color: c.text)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cerrar'),
+            child: Text('Cerrar', style: TextStyle(color: c.sys)),
           ),
         ],
       ),
@@ -40,6 +44,7 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
 
   @override
   Widget build(BuildContext context) {
+    final c = HudColors.consola;
     final graph = widget.graph;
     final visibleNodes =
         graph.nodes.where((n) => !_rejectedIds.contains(n.id)).toList();
@@ -95,33 +100,36 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
       ..nodeSeparation = 24
       ..levelSeparation = 48;
 
-    return GraphView.builder(
-      graph: graphViewGraph,
-      algorithm: SugiyamaAlgorithm(configuration),
-      builder: (node) {
-        final id = node.key!.value as String;
-        if (id == _rootId) {
-          return const _TreeChip(label: 'TÚ', isRoot: true);
-        }
-        final modelNode = nodesById[id]!;
-        return _TreeChip(
-          label: modelNode.label,
-          icon: iconForNode(modelNode),
-          isSugerido: modelNode.origin == model.NodeOrigin.sugerido,
-          hasTurningPoint: turningPointIds.contains(id),
-          onTap: () => showModalBottomSheet<void>(
-            context: context,
-            builder: (_) => NodeDetailSheet(node: modelNode),
-          ),
-          onTurningPointTap: () => _showEvidence(evidenceByNodeId[id]!),
-          onAccept: modelNode.origin == model.NodeOrigin.sugerido
-              ? () {} // already visible; accepting just dismisses the prompt
-              : null,
-          onReject: modelNode.origin == model.NodeOrigin.sugerido
-              ? () => setState(() => _rejectedIds.add(id))
-              : null,
-        );
-      },
+    return Container(
+      color: c.bg,
+      child: GraphView.builder(
+        graph: graphViewGraph,
+        algorithm: SugiyamaAlgorithm(configuration),
+        builder: (node) {
+          final id = node.key!.value as String;
+          if (id == _rootId) {
+            return const _TreeChip(label: 'TÚ', isRoot: true);
+          }
+          final modelNode = nodesById[id]!;
+          return _TreeChip(
+            label: modelNode.label,
+            icon: iconForNode(modelNode),
+            isSugerido: modelNode.origin == model.NodeOrigin.sugerido,
+            hasTurningPoint: turningPointIds.contains(id),
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              builder: (_) => NodeDetailSheet(node: modelNode),
+            ),
+            onTurningPointTap: () => _showEvidence(evidenceByNodeId[id]!),
+            onAccept: modelNode.origin == model.NodeOrigin.sugerido
+                ? () {} // already visible; accepting just dismisses the prompt
+                : null,
+            onReject: modelNode.origin == model.NodeOrigin.sugerido
+                ? () => setState(() => _rejectedIds.add(id))
+                : null,
+          );
+        },
+      ),
     );
   }
 }
@@ -151,46 +159,64 @@ class _TreeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = HudColors.consola;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: HudChamferedBox(
+        fill: isRoot ? c.id : c.struct,
+        borderColor: isSugerido ? c.text2 : null,
+        borderWidth: 1,
+        chamfer: 6,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isRoot ? Colors.black87 : Colors.blueGrey.shade700,
-          borderRadius: BorderRadius.circular(8),
-          border: isSugerido
-              ? Border.all(color: Colors.white70, width: 1)
-              : null,
-        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 14, color: Colors.white),
+              Icon(icon, size: 14, color: c.text),
               const SizedBox(width: 4),
             ],
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+            Text(
+              label,
+              style: TextStyle(color: isRoot ? c.bg : c.text, fontSize: 12),
+            ),
             if (hasTurningPoint) ...[
               const SizedBox(width: 4),
               TurningPointBadge(onTap: onTurningPointTap ?? () {}),
             ],
             if (onAccept != null) ...[
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: onAccept,
-                child: const Icon(Icons.check, size: 14, color: Colors.greenAccent),
+              const SizedBox(width: 2),
+              _HitTarget(
+                onTap: onAccept!,
+                child: Icon(Icons.check, size: 14, color: c.signal),
               ),
             ],
             if (onReject != null) ...[
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: onReject,
-                child: const Icon(Icons.close, size: 14, color: Colors.redAccent),
+              const SizedBox(width: 2),
+              _HitTarget(
+                onTap: onReject!,
+                child: Icon(Icons.close, size: 14, color: c.deny),
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Wraps a small icon control with the 28x28pt minimum tap target
+/// (accessibility.md § Mobility) without inflating its visible size.
+class _HitTarget extends StatelessWidget {
+  const _HitTarget({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(width: 28, height: 28, child: Center(child: child)),
     );
   }
 }

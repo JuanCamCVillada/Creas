@@ -62,12 +62,12 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: GraphViewScreen(session: _sessionWithNode())));
     await tester.pumpAndSettle();
 
-    expect(find.text('Jardín Digital'), findsWidgets);
-    expect(find.text('Árbol Genealógico'), findsWidgets);
+    expect(find.text('01 JARDÍN'), findsWidgets);
+    expect(find.text('02 LINAJE'), findsWidgets);
 
     expect(find.text('Cache manual'), findsOneWidget);
 
-    await tester.tap(find.text('Árbol Genealógico'));
+    await tester.tap(find.text('02 LINAJE'));
     await tester.pumpAndSettle();
 
     expect(find.text('Cache manual'), findsOneWidget);

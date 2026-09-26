@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:creative/ui/settings/api_key_screen.dart';
+import 'package:creative/ui/theme/hud_widgets.dart';
 
 import '../helpers/fakes.dart';
 
@@ -16,7 +17,7 @@ void main() {
     expect(find.text('sk-ant-old'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'sk-ant-new');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Guardar'));
+    await tester.tap(find.widgetWithText(HudButton, 'GUARDAR'));
     await tester.pumpAndSettle();
 
     expect(await store.getApiKey(), 'sk-ant-new');

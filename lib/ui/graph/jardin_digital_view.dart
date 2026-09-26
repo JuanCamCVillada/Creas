@@ -4,6 +4,8 @@ import 'package:graphview/GraphView.dart';
 
 import '../../models/creative_graph.dart';
 import '../../models/node.dart' as model;
+import '../theme/hud_tokens.dart';
+import '../theme/hud_widgets.dart';
 import 'node_detail_sheet.dart';
 import 'node_icons.dart';
 
@@ -12,37 +14,29 @@ class JardinDigitalView extends StatelessWidget {
 
   final CreativeGraph graph;
 
-  static const _clusterPalette = [
-    Colors.teal,
-    Colors.deepOrange,
-    Colors.indigo,
-    Colors.pink,
-    Colors.green,
-    Colors.amber,
-    Colors.purple,
-    Colors.cyan,
-  ];
-
-  Color _colorForCluster(String cluster) {
-    final index = cluster.hashCode.abs() % _clusterPalette.length;
-    return _clusterPalette[index];
-  }
-
   @override
   Widget build(BuildContext context) {
+    final c = HudColors.consola;
     // Guard against graphview crash on 0 or 1-node graphs
     if (graph.nodes.isEmpty) {
-      return const Center(child: Text('El jardín está vacío.'));
+      return Container(
+        color: c.bg,
+        child: Center(
+          child: Text('El jardín está vacío.', style: TextStyle(color: c.textDim)),
+        ),
+      );
     }
     if (graph.nodes.length == 1) {
       final onlyNode = graph.nodes.first;
-      return Center(
-        child: _NodeChip(
-          node: onlyNode,
-          color: _colorForCluster(onlyNode.cluster),
-          onTap: () => showModalBottomSheet<void>(
-            context: context,
-            builder: (_) => NodeDetailSheet(node: onlyNode),
+      return Container(
+        color: c.bg,
+        child: Center(
+          child: _NodeChip(
+            node: onlyNode,
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              builder: (_) => NodeDetailSheet(node: onlyNode),
+            ),
           ),
         ),
       );
@@ -72,50 +66,54 @@ class JardinDigitalView extends StatelessWidget {
 
     final algorithm = FruchtermanReingoldAlgorithm(FruchtermanReingoldConfiguration());
 
-    return GraphView.builder(
-      graph: graphViewGraph,
-      algorithm: algorithm,
-      builder: (node) {
-        final id = node.key!.value as String;
-        final modelNode = nodesById[id]!;
-        return _NodeChip(
-          node: modelNode,
-          color: _colorForCluster(modelNode.cluster),
-          onTap: () => showModalBottomSheet<void>(
-            context: context,
-            builder: (_) => NodeDetailSheet(node: modelNode),
-          ),
-        );
-      },
+    return Container(
+      color: c.bg,
+      child: GraphView.builder(
+        graph: graphViewGraph,
+        algorithm: algorithm,
+        builder: (node) {
+          final id = node.key!.value as String;
+          final modelNode = nodesById[id]!;
+          return _NodeChip(
+            node: modelNode,
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              builder: (_) => NodeDetailSheet(node: modelNode),
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
 class _NodeChip extends StatelessWidget {
-  const _NodeChip({required this.node, required this.color, required this.onTap});
+  const _NodeChip({required this.node, required this.onTap});
 
   final model.Node node;
-  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final c = HudColors.consola;
+    // Every cluster reads on the same --struct fill (verified ~7.4:1 with
+    // --paper text) — cluster identity comes from the node's icon, not from
+    // hue, so no chip can fall below the accessible-contrast floor the way
+    // the old 8-color hashed palette did.
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: HudChamferedBox(
+        fill: c.struct,
+        chamfer: 6,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(8),
-        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(iconForNode(node), size: 14, color: Colors.white),
+            Icon(iconForNode(node), size: 14, color: c.text),
             const SizedBox(width: 4),
             Text(
               node.label,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+              style: TextStyle(color: c.text, fontSize: 12),
             ),
           ],
         ),

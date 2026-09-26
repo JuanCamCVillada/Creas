@@ -4,6 +4,7 @@ import 'package:creative/engine/graph_generator.dart';
 import 'package:creative/models/creative_graph.dart';
 import 'package:creative/models/session.dart';
 import 'package:creative/ui/input/input_screen.dart';
+import 'package:creative/ui/theme/hud_widgets.dart';
 
 import '../helpers/fakes.dart';
 
@@ -47,7 +48,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'hoy arreglé un bug');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Generar'));
+    await tester.tap(find.widgetWithText(HudButton, 'GENERAR'));
     await tester.pumpAndSettle();
 
     expect(poppedSession?.rawInput, 'hoy arreglé un bug');
@@ -65,7 +66,7 @@ void main() {
     ));
 
     await tester.enterText(find.byType(TextField), 'algo');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Generar'));
+    await tester.tap(find.widgetWithText(HudButton, 'GENERAR'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('sin clave de API'), findsOneWidget);

@@ -106,5 +106,39 @@ Map<String, Offset> computeForceLayout({
     temperature *= 0.95;
   }
 
+  // The physics loop above only balances forces on average — a pair pulled
+  // together by a strong attraction edge can settle closer than
+  // minSeparation even though repulsion pushes back, and the temperature
+  // schedule can run out before full convergence. Enforce minSeparation as
+  // a hard floor on every pair directly, so cells never visually overlap
+  // regardless of how well the simulation converged. Iterated because
+  // resolving one pair can push it into another.
+  if (minSeparation != null) {
+    for (var pass = 0; pass < 50; pass++) {
+      var anyOverlap = false;
+      for (var i = 0; i < nodeIds.length; i++) {
+        for (var j = i + 1; j < nodeIds.length; j++) {
+          final a = nodeIds[i];
+          final b = nodeIds[j];
+          final delta = positions[a]! - positions[b]!;
+          final dist = delta.distance;
+          if (dist < minSeparation) {
+            anyOverlap = true;
+            final dir = dist > 0.01 ? delta / dist : const Offset(1, 0);
+            final push = (minSeparation - dist) / 2;
+            positions[a] = positions[a]! + dir * push;
+            positions[b] = positions[b]! - dir * push;
+          }
+        }
+      }
+      if (!anyOverlap) break;
+    }
+    // Deliberately not re-clamped to the frame here: two nodes pushed apart
+    // right at the same edge would otherwise both get clamped back onto it
+    // and land coincident again, undoing the separation just enforced.
+    // GraphCanvas normalizes whatever bounding box comes back, so a little
+    // overshoot past the nominal frame is harmless.
+  }
+
   return positions;
 }

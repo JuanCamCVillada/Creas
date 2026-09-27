@@ -12,11 +12,11 @@ import 'canvas/graph_legend.dart';
 import 'canvas/lineage_layout.dart';
 import 'canvas/node_cell.dart';
 import 'canvas/node_shapes.dart';
+import 'graph_status.dart';
 import 'node_detail_sheet.dart';
 import 'node_icons.dart';
 
 const _rootId = 'root-tu';
-const _nodeCellSize = Size(150, 156);
 const _columnSpacing = 210.0;
 const _rowSpacing = 150.0;
 
@@ -216,14 +216,8 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
       return chain.reversed.toList();
     }
 
-    final lowConfidenceFuentes = visibleNodes
-        .where((n) =>
-            n.type == model.NodeType.fuente &&
-            n.confidence != null &&
-            n.confidence! < 0.5)
-        .toList();
-    final graphStatus =
-        lowConfidenceFuentes.isEmpty ? HudStatus.nominal : HudStatus.precaucion;
+    final lowConfidence = lowConfidenceFuentes(visibleNodes);
+    final graphStatus = statusForLowConfidence(lowConfidence);
 
     return Container(
       color: c.bg,
@@ -233,7 +227,7 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
             nodeIds: nodeIds,
             initialPositions: positions,
             edges: canvasEdges,
-            nodeSize: _nodeCellSize,
+            nodeSize: kGraphNodeCellSize,
             edgeColor: c.data,
             nodeBuilder: (context, id) {
               if (id == _rootId) {
@@ -333,7 +327,7 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
             right: 12,
             child: IgnorePointer(child: HudStatusBadge(status: graphStatus)),
           ),
-          if (lowConfidenceFuentes.isNotEmpty)
+          if (lowConfidence.isNotEmpty)
             Positioned(
               top: 52,
               right: 12,
@@ -342,9 +336,7 @@ class _ArbolGenealogicoViewState extends State<ArbolGenealogicoView> {
                 child: HudHazardBanner(
                   status: HudStatus.precaucion,
                   glyph: '注意',
-                  title:
-                      'FUENTE ${codeOf[lowConfidenceFuentes.first.id]} CON CONFIANZA BAJA '
-                      '(${lowConfidenceFuentes.first.confidence!.toStringAsFixed(2)})',
+                  title: lowConfidenceBannerTitle(lowConfidence, codeOf),
                   subtitle: 'Revisar antes de derivar conceptos desde aquí.',
                 ),
               ),

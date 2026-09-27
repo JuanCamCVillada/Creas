@@ -7,6 +7,7 @@ class GraphCanvasEdge {
     required this.toId,
     this.dashed = false,
     this.color,
+    this.width,
   });
 
   final String fromId;
@@ -17,6 +18,12 @@ class GraphCanvasEdge {
   /// transforma_en) — see `arbol_genealogico_view.dart`.
   final bool dashed;
   final Color? color;
+
+  /// Overrides the default stroke width (1.4 dashed / 2.2 solid) — lets a
+  /// caller encode a continuous value (e.g. affinity weight) as line
+  /// thickness instead of alpha alone, since color/opacity by itself is a
+  /// weak, easy-to-miss signal for "strong vs weak" at a glance.
+  final double? width;
 }
 
 typedef GraphCanvasNodeBuilder = Widget Function(BuildContext context, String id);
@@ -35,6 +42,7 @@ class GraphCanvas extends StatefulWidget {
     required this.nodeSize,
     this.canvasSize = const Size(2600, 1400),
     this.edgeColor = const Color(0xFF47C5FB),
+    this.backgroundBuilder,
   });
 
   final List<String> nodeIds;
@@ -44,6 +52,13 @@ class GraphCanvas extends StatefulWidget {
   final Size nodeSize;
   final Size canvasSize;
   final Color edgeColor;
+
+  /// Painted behind the edges and nodes, in the same (already origin-
+  /// shifted) coordinate space as the positions [nodeBuilder] receives —
+  /// e.g. Jardín Digital uses this to paint the orbit rings its own
+  /// layout algorithm computes, so a "loose" node's ring is an actual
+  /// visible boundary instead of just a text label.
+  final Widget Function(Map<String, Offset> positions)? backgroundBuilder;
 
   @override
   State<GraphCanvas> createState() => _GraphCanvasState();
@@ -131,6 +146,8 @@ class _GraphCanvasState extends State<GraphCanvas> {
         height: _contentSize.height,
         child: Stack(
           children: [
+            if (widget.backgroundBuilder != null)
+              Positioned.fill(child: widget.backgroundBuilder!(_positions)),
             Positioned.fill(
               child: CustomPaint(
                 painter: _EdgePainter(
@@ -194,7 +211,7 @@ class _EdgePainter extends CustomPainter {
       final paint = Paint()
         ..color = edgeColor.withValues(alpha: edge.dashed ? 0.5 : 0.85)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = edge.dashed ? 1.4 : 2.2
+        ..strokeWidth = edge.width ?? (edge.dashed ? 1.4 : 2.2)
         ..strokeCap = StrokeCap.round;
       canvas.drawPath(drawnPath, paint);
 

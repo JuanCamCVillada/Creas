@@ -5,6 +5,13 @@ import '../../theme/hud_text.dart';
 import '../turning_point_badge.dart';
 import 'node_shapes.dart';
 
+/// The fixed size [GraphCanvas] reserves for every [GraphNodeCell] — tall
+/// enough for a header label (generation/cluster caption) and a badge row
+/// (accept/reject, turning-point) to both be present at once. Both graph
+/// views share this constant instead of guessing at it independently, so
+/// they can't silently drift apart.
+const kGraphNodeCellSize = Size(150, 162);
+
 /// The single node-cell widget both graph views render inside [GraphCanvas]:
 /// a shape (meaning decided by the caller — hexagon/circle/diamond/double
 /// ring), an id code, the node's own label and cluster, and an optional row
@@ -56,37 +63,55 @@ class GraphNodeCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = HudColors.consola;
-    return GestureDetector(
-      onTap: onTap,
+    // Positioned to a fixed pixel box by GraphCanvas — this is canvas
+    // content, not scrolling document text, so it deliberately opts out of
+    // the system text-scale setting. Without this, a viewer with a larger
+    // accessibility text size overflows the fixed-height cell on every
+    // node; the cell's own information (code, label, cluster) stays fully
+    // readable via zooming the canvas itself instead.
+    return MediaQuery.withNoTextScaling(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (generationLabel != null)
             Text(generationLabel!, style: HudText.terminal(c.textDim, size: 9)),
-          NodeShape(
-            kind: shapeKind,
-            size: 52,
-            fill: fill,
-            border: isSugerido ? c.text2 : fill,
-            dashedBorder: isSugerido,
-            glow: glow,
-            child: Icon(icon, size: 16, color: c.text),
-          ),
-          const SizedBox(height: 4),
-          Text(code, style: HudText.terminal(c.id, size: 10)),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: c.text, fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          Text(
-            cluster,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: HudText.terminal(c.textDim, size: 9),
+          // Only the shape + its labels open the detail sheet — the badge
+          // row below is a sibling, not a descendant, of this tap target.
+          // Nesting a GestureDetector inside another (the previous
+          // structure) let a tap on accept/reject also fire the outer
+          // onTap, since both are on the same pointer-down hit-test path.
+          GestureDetector(
+            onTap: onTap,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NodeShape(
+                  kind: shapeKind,
+                  size: 52,
+                  fill: fill,
+                  border: isSugerido ? c.text2 : fill,
+                  dashedBorder: isSugerido,
+                  glow: glow,
+                  child: Icon(icon, size: 16, color: c.text),
+                ),
+                const SizedBox(height: 4),
+                Text(code, style: HudText.terminal(c.id, size: 10)),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: c.text, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  cluster,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: HudText.terminal(c.textDim, size: 9),
+                ),
+              ],
+            ),
           ),
           if (hasTurningPoint || onAccept != null || onReject != null)
             Row(

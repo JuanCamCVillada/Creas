@@ -80,4 +80,81 @@ void main() {
 
     expect(find.text('d'), findsWidgets);
   });
+
+  testWidgets('rejecting a sugerido node removes it from the garden', (tester) async {
+    final graph = CreativeGraph(
+      nodes: [
+        ..._graph().nodes,
+        const Node(
+          id: 's3',
+          type: NodeType.fuente,
+          label: 'Sugerencia dudosa',
+          description: 'd',
+          cluster: 'musica',
+          origin: NodeOrigin.sugerido,
+          confidence: 0.9,
+        ),
+      ],
+      edges: const [],
+      affinityEdges: _graph().affinityEdges,
+      turningPoints: const [],
+      followupQuestions: const [],
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(width: 800, height: 600, child: JardinDigitalView(graph: graph)),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sugerencia dudosa'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pump();
+
+    expect(find.text('Sugerencia dudosa'), findsNothing);
+  });
+
+  testWidgets('shows every affected fuente when several have low confidence',
+      (tester) async {
+    final graph = CreativeGraph(
+      nodes: [
+        const Node(
+          id: 'f1',
+          type: NodeType.fuente,
+          label: 'Fuente uno',
+          description: 'd',
+          cluster: 'x',
+          origin: NodeOrigin.usuario,
+          confidence: 0.2,
+        ),
+        const Node(
+          id: 'f2',
+          type: NodeType.fuente,
+          label: 'Fuente dos',
+          description: 'd',
+          cluster: 'x',
+          origin: NodeOrigin.usuario,
+          confidence: 0.3,
+        ),
+      ],
+      edges: const [],
+      affinityEdges: const [],
+      turningPoints: const [],
+      followupQuestions: const [],
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(width: 800, height: 600, child: JardinDigitalView(graph: graph)),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Both codes must appear — the old banner silently named only the
+    // first low-confidence fuente.
+    expect(find.textContaining('F-01'), findsWidgets);
+    expect(find.textContaining('F-02'), findsWidgets);
+  });
 }

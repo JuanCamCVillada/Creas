@@ -80,6 +80,24 @@ void main() {
     expect(find.textContaining('¿Quién te enseñó esto?'), findsOneWidget);
   });
 
+  testWidgets(
+      'narrow layout: INFO opens the same stats a wide layout shows in its '
+      'aside, since there is no room for a persistent one on a phone',
+      (tester) async {
+    // Default test surface size (800x600) is below the wide breakpoint.
+    await tester.pumpWidget(MaterialApp(home: GraphViewScreen(session: _sessionWithNode())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('EXPORTAR JSON'), findsNothing);
+
+    await tester.tap(find.text('INFO'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('NODOS'), findsOneWidget);
+    expect(find.text('ARISTAS'), findsOneWidget);
+    expect(find.text('EXPORTAR JSON'), findsOneWidget);
+  });
+
   group('wide (desktop/web) layout', () {
     Future<void> pumpWide(WidgetTester tester, GraphSession session) async {
       await tester.binding.setSurfaceSize(const Size(1400, 900));

@@ -10,14 +10,16 @@ import '../../theme/hud_text.dart';
 import '../../theme/hud_widgets.dart';
 import '../canvas/lineage_layout.dart';
 
-/// The wide-layout left column: the session's own devlog, then a stat grid
-/// computed straight from the graph (no invented numbers — every figure
-/// here is a real count) and a real export action. Only shown at desktop
-/// widths; narrow layouts skip it entirely rather than cram it in.
+/// The session's own devlog, then a stat grid computed straight from the
+/// graph (no invented numbers — every figure here is a real count) and a
+/// real export action. Used two ways: as the wide-layout's persistent left
+/// column (fixed [width]), and as the content of a mobile "INFO" modal
+/// (width left null so it fills whatever sheet it's shown in).
 class HudStatsPanel extends StatefulWidget {
-  const HudStatsPanel({super.key, required this.session});
+  const HudStatsPanel({super.key, required this.session, this.width = 280});
 
   final GraphSession session;
+  final double? width;
 
   @override
   State<HudStatsPanel> createState() => _HudStatsPanelState();
@@ -52,7 +54,7 @@ class _HudStatsPanelState extends State<HudStatsPanel> {
         : generationDepths.values.reduce((a, b) => a > b ? a : b) + 1;
 
     return Container(
-      width: 280,
+      width: widget.width,
       color: c.panel,
       padding: const EdgeInsets.all(20),
       child: SingleChildScrollView(

@@ -66,6 +66,61 @@ Widget _connectarButton(BuildContext context, HudColors c, GraphSession session)
   );
 }
 
+Widget _infoButton(BuildContext context, HudColors c, GraphSession session) {
+  return InkWell(
+    onTap: () => showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _InfoModal(session: session),
+    ),
+    child: HudChamferedBox(
+      fill: Colors.transparent,
+      borderColor: c.id,
+      borderWidth: 1.5,
+      chamfer: 6,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Text('INFO', style: HudText.operativa(c.id, size: 12)),
+    ),
+  );
+}
+
+/// Mobile's stand-in for the desktop dashboard's persistent left stats
+/// column — there's no room for a permanent aside on a phone-width
+/// screen, so the same real data (devlog, node/edge/generation counts,
+/// export) surfaces in a modal instead of just being unavailable.
+class _InfoModal extends StatelessWidget {
+  const _InfoModal({required this.session});
+
+  final GraphSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = HudColors.consola;
+    return ClipRRect(
+      borderRadius: BorderRadius.zero,
+      child: Material(
+        color: c.panel,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                color: c.grid,
+              ),
+              Flexible(child: HudStatsPanel(session: session, width: null)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Widget _followupBanner(HudColors c, List<String> followupQuestions) {
   if (followupQuestions.isEmpty) return const SizedBox.shrink();
   return Padding(
@@ -99,6 +154,10 @@ class _MobileTabs extends StatelessWidget {
         appBar: AppBar(
           title: HudIdBadge(label: 'Sesión · ${_shortDate(session.createdAt)}'),
           actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(child: _infoButton(context, c, session)),
+            ),
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Center(child: _connectarButton(context, c, session)),

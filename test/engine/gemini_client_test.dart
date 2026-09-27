@@ -114,6 +114,100 @@ void main() {
       );
     });
 
+    test('retries on a 503 and succeeds once the model responds', () async {
+      var callCount = 0;
+      final mockClient = MockClient((request) async {
+        callCount++;
+        if (callCount < 3) {
+          return http.Response(
+              '{"error": {"code": 503, "status": "UNAVAILABLE"}}', 503);
+        }
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'functionCall': {
+                        'name': 'emit_creative_graph',
+                        'args': {'nodes': [], 'edges': []},
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      final client = GeminiClient(
+        httpClient: mockClient,
+        baseRetryDelay: Duration.zero,
+      );
+      final result = await client.requestToolCall(
+        apiKey: 'test-key',
+        systemPrompt: 'system',
+        userInput: 'input',
+      );
+
+      expect(result, {'nodes': [], 'edges': []});
+      expect(callCount, 3);
+    });
+
+    test('gives a clear overload message after exhausting retries on a '
+        'persistent 503', () async {
+      var callCount = 0;
+      final mockClient = MockClient((request) async {
+        callCount++;
+        return http.Response(
+            '{"error": {"code": 503, "status": "UNAVAILABLE"}}', 503);
+      });
+
+      final client = GeminiClient(
+        httpClient: mockClient,
+        maxRetries: 2,
+        baseRetryDelay: Duration.zero,
+      );
+
+      await expectLater(
+        () => client.requestToolCall(
+          apiKey: 'test-key',
+          systemPrompt: 'system',
+          userInput: 'input',
+        ),
+        throwsA(isA<GeminiApiException>().having(
+          (e) => e.toString(),
+          'message',
+          contains('sobrecargado'),
+        )),
+      );
+      // The original attempt plus maxRetries retries.
+      expect(callCount, 3);
+    });
+
+    test('does not retry a non-transient error like 401', () async {
+      var callCount = 0;
+      final mockClient = MockClient((request) async {
+        callCount++;
+        return http.Response('{"error": "unauthorized"}', 401);
+      });
+
+      final client = GeminiClient(httpClient: mockClient, baseRetryDelay: Duration.zero);
+
+      await expectLater(
+        () => client.requestToolCall(
+          apiKey: 'bad-key',
+          systemPrompt: 'system',
+          userInput: 'input',
+        ),
+        throwsA(isA<GeminiApiException>()),
+      );
+      expect(callCount, 1);
+    });
+
     test('throws GeminiApiException when there are no candidates', () async {
       final mockClient = MockClient((request) async {
         return http.Response(jsonEncode({'candidates': <dynamic>[]}), 200);

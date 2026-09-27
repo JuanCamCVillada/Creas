@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'hud_tokens.dart';
@@ -121,11 +123,7 @@ class HudButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (loading)
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: c.sys),
-              )
+              const HudBlockProgress(width: 28, height: 10, blockCount: 6)
             else
               Text('▶', style: TextStyle(color: c.sys, fontSize: 14)),
             const SizedBox(width: 8),
@@ -232,10 +230,13 @@ class HudSegmentedTabs extends StatelessWidget {
   }
 }
 
-/// Barra de sincronización: reemplaza los spinners genéricos.
-/// Indeterminate here since the app has no real progress signal to report —
-/// showing a fake percentage would be dishonest (loading.md: determinate
-/// only when you actually know how long it'll take).
+/// Barra de sincronización: reemplaza los spinners genéricos — hud-tactico
+/// §5 "Barra de sincronización: … bloques `--sys` sobre `--grid`". No shows
+/// a percentage: the app has no real progress signal to report, and
+/// fabricating one would be dishonest (loading.md: determinate only when
+/// you actually know how long it'll take). Indeterminate progress reads
+/// instead as a scanning highlight sweeping the blocks — hud-tactico §6
+/// "Barrido: línea de escaneo lineal" is exactly this case.
 class HudSyncIndicator extends StatelessWidget {
   const HudSyncIndicator({super.key, this.label = 'SINCRONIZANDO'});
 
@@ -247,14 +248,144 @@ class HudSyncIndicator extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(strokeWidth: 2, color: c.sys),
-        ),
+        const HudBlockProgress(width: 120, height: 12, blockCount: 18),
         const SizedBox(width: 10),
         Text('$label…', style: HudText.terminal(c.text2, size: 13)),
       ],
     );
   }
+}
+
+/// The block-style progress bar itself, reused by [HudButton]'s loading
+/// state and [HudSyncIndicator]: a row of ticks in `--grid`, with a short
+/// run of `--sys` ticks sweeping left to right on a loop. Respects
+/// reduced-motion (hud-tactico §8 / WCAG 2.3.1): the sweep freezes at a
+/// single static position instead of animating.
+class HudBlockProgress extends StatefulWidget {
+  const HudBlockProgress({
+    super.key,
+    this.width = 120,
+    this.height = 12,
+    this.blockCount = 18,
+  });
+
+  final double width;
+  final double height;
+  final int blockCount;
+
+  @override
+  State<HudBlockProgress> createState() => _HudBlockProgressState();
+}
+
+class _HudBlockProgressState extends State<HudBlockProgress>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = HudColors.consola;
+    final highlightSpan = math.max(2, (widget.blockCount * 0.28).round()).toDouble();
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    if (reduceMotion) {
+      return SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: CustomPaint(
+          painter: _BlockProgressPainter(
+            blockCount: widget.blockCount,
+            highlightStart: (widget.blockCount - highlightSpan) / 2,
+            highlightSpan: highlightSpan,
+            active: c.sys,
+            inactive: c.grid,
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final travel = widget.blockCount + highlightSpan;
+          final highlightStart = _controller.value * travel - highlightSpan;
+          return CustomPaint(
+            painter: _BlockProgressPainter(
+              blockCount: widget.blockCount,
+              highlightStart: highlightStart,
+              highlightSpan: highlightSpan,
+              active: c.sys,
+              inactive: c.grid,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _BlockProgressPainter extends CustomPainter {
+  _BlockProgressPainter({
+    required this.blockCount,
+    required this.highlightStart,
+    required this.highlightSpan,
+    required this.active,
+    required this.inactive,
+  });
+
+  final int blockCount;
+  final double highlightStart;
+  final double highlightSpan;
+  final Color active;
+  final Color inactive;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const gapFraction = 0.28;
+    final blockWidth = size.width / (blockCount + (blockCount - 1) * gapFraction);
+    final gap = blockWidth * gapFraction;
+
+    for (var i = 0; i < blockCount; i++) {
+      final distanceFromHighlight =
+          (i + 0.5) - (highlightStart + highlightSpan / 2);
+      // Blocks nearer the highlight's center glow brighter, fading out
+      // toward its edges — a soft scan rather than a hard on/off tick.
+      final proximity = (1 - (distanceFromHighlight.abs() / (highlightSpan / 2 + 0.5)))
+          .clamp(0.0, 1.0);
+      final color = Color.lerp(inactive, active, proximity)!;
+      final rect = Rect.fromLTWH(i * (blockWidth + gap), 0, blockWidth, size.height);
+
+      if (proximity > 0.5) {
+        canvas.drawRect(
+          rect.inflate(1.5),
+          Paint()
+            ..color = active.withValues(alpha: 0.35 * proximity)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        );
+      }
+      canvas.drawRect(rect, Paint()..color = color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BlockProgressPainter oldDelegate) =>
+      oldDelegate.highlightStart != highlightStart ||
+      oldDelegate.blockCount != blockCount ||
+      oldDelegate.active != active ||
+      oldDelegate.inactive != inactive;
 }

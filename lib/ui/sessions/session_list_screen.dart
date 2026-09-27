@@ -91,7 +91,7 @@ class _SessionListScreenState extends State<SessionListScreen> {
         ],
       ),
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: c.sys))
+          ? const Center(child: HudSyncIndicator())
           : _sessions.isEmpty
               ? Center(
                   child: Text(

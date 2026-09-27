@@ -267,11 +267,19 @@ class HudBlockProgress extends StatefulWidget {
     this.width = 120,
     this.height = 12,
     this.blockCount = 18,
+    this.progress,
   });
 
   final double width;
   final double height;
   final int blockCount;
+
+  /// null (the default): indeterminate — a sweep, no fabricated number.
+  /// 0.0–1.0: determinate — fills that fraction of the blocks solid, no
+  /// animation. Only pass this when the caller genuinely knows how far
+  /// along it is (e.g. "step 2 of 5"), never to fake a percentage for a
+  /// process with no real progress signal (loading.md).
+  final double? progress;
 
   @override
   State<HudBlockProgress> createState() => _HudBlockProgressState();
@@ -297,6 +305,23 @@ class _HudBlockProgressState extends State<HudBlockProgress>
   @override
   Widget build(BuildContext context) {
     final c = HudColors.consola;
+
+    if (widget.progress != null) {
+      final filled = (widget.blockCount * widget.progress!.clamp(0.0, 1.0)).round();
+      return SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: CustomPaint(
+          painter: _BlockProgressPainter.fill(
+            blockCount: widget.blockCount,
+            filledCount: filled,
+            active: c.sys,
+            inactive: c.grid,
+          ),
+        ),
+      );
+    }
+
     final highlightSpan = math.max(2, (widget.blockCount * 0.28).round()).toDouble();
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
@@ -305,7 +330,7 @@ class _HudBlockProgressState extends State<HudBlockProgress>
         width: widget.width,
         height: widget.height,
         child: CustomPaint(
-          painter: _BlockProgressPainter(
+          painter: _BlockProgressPainter.sweep(
             blockCount: widget.blockCount,
             highlightStart: (widget.blockCount - highlightSpan) / 2,
             highlightSpan: highlightSpan,
@@ -325,7 +350,7 @@ class _HudBlockProgressState extends State<HudBlockProgress>
           final travel = widget.blockCount + highlightSpan;
           final highlightStart = _controller.value * travel - highlightSpan;
           return CustomPaint(
-            painter: _BlockProgressPainter(
+            painter: _BlockProgressPainter.sweep(
               blockCount: widget.blockCount,
               highlightStart: highlightStart,
               highlightSpan: highlightSpan,
@@ -340,17 +365,29 @@ class _HudBlockProgressState extends State<HudBlockProgress>
 }
 
 class _BlockProgressPainter extends CustomPainter {
-  _BlockProgressPainter({
+  _BlockProgressPainter.sweep({
     required this.blockCount,
-    required this.highlightStart,
-    required this.highlightSpan,
+    required double highlightStart,
+    required double highlightSpan,
     required this.active,
     required this.inactive,
-  });
+  })  : _highlightStart = highlightStart,
+        _highlightSpan = highlightSpan,
+        _filledCount = null;
+
+  _BlockProgressPainter.fill({
+    required this.blockCount,
+    required int filledCount,
+    required this.active,
+    required this.inactive,
+  })  : _filledCount = filledCount,
+        _highlightStart = 0,
+        _highlightSpan = 0;
 
   final int blockCount;
-  final double highlightStart;
-  final double highlightSpan;
+  final double _highlightStart;
+  final double _highlightSpan;
+  final int? _filledCount;
   final Color active;
   final Color inactive;
 
@@ -359,16 +396,34 @@ class _BlockProgressPainter extends CustomPainter {
     const gapFraction = 0.28;
     final blockWidth = size.width / (blockCount + (blockCount - 1) * gapFraction);
     final gap = blockWidth * gapFraction;
+    final filledCount = _filledCount;
 
     for (var i = 0; i < blockCount; i++) {
-      final distanceFromHighlight =
-          (i + 0.5) - (highlightStart + highlightSpan / 2);
+      final rect = Rect.fromLTWH(i * (blockWidth + gap), 0, blockWidth, size.height);
+
+      if (filledCount != null) {
+        // Determinate: a hard fill boundary with a glow right on the
+        // leading edge, like a bar filling up rather than a scan.
+        final isFilled = i < filledCount;
+        final isLeadingEdge = i == filledCount - 1;
+        if (isLeadingEdge) {
+          canvas.drawRect(
+            rect.inflate(1.5),
+            Paint()
+              ..color = active.withValues(alpha: 0.5)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+          );
+        }
+        canvas.drawRect(rect, Paint()..color = isFilled ? active : inactive);
+        continue;
+      }
+
+      final distanceFromHighlight = (i + 0.5) - (_highlightStart + _highlightSpan / 2);
       // Blocks nearer the highlight's center glow brighter, fading out
       // toward its edges — a soft scan rather than a hard on/off tick.
-      final proximity = (1 - (distanceFromHighlight.abs() / (highlightSpan / 2 + 0.5)))
+      final proximity = (1 - (distanceFromHighlight.abs() / (_highlightSpan / 2 + 0.5)))
           .clamp(0.0, 1.0);
       final color = Color.lerp(inactive, active, proximity)!;
-      final rect = Rect.fromLTWH(i * (blockWidth + gap), 0, blockWidth, size.height);
 
       if (proximity > 0.5) {
         canvas.drawRect(
@@ -384,7 +439,8 @@ class _BlockProgressPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BlockProgressPainter oldDelegate) =>
-      oldDelegate.highlightStart != highlightStart ||
+      oldDelegate._highlightStart != _highlightStart ||
+      oldDelegate._filledCount != _filledCount ||
       oldDelegate.blockCount != blockCount ||
       oldDelegate.active != active ||
       oldDelegate.inactive != inactive;

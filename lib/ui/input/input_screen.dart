@@ -6,6 +6,9 @@ import '../theme/hud_alerts.dart';
 import '../theme/hud_tokens.dart';
 import '../theme/hud_text.dart';
 import '../theme/hud_widgets.dart';
+import 'guided_input_flow.dart';
+
+enum _InputMode { guiado, libre }
 
 class InputScreen extends StatefulWidget {
   const InputScreen({
@@ -23,6 +26,10 @@ class InputScreen extends StatefulWidget {
 
 class _InputScreenState extends State<InputScreen> {
   final _controller = TextEditingController();
+  // LIBRE (the plain text field) stays the default: it's the one path
+  // that's always been tested and works with a screen reader or paste,
+  // and GUIADO's whole value is opt-in structure, not a forced detour.
+  _InputMode _mode = _InputMode.libre;
   bool _loading = false;
   String? _error;
 
@@ -48,6 +55,11 @@ class _InputScreenState extends State<InputScreen> {
         _error = e.toString();
       });
     }
+  }
+
+  Future<void> _generateFromGuided(String combinedText) async {
+    _controller.text = combinedText;
+    await _generate();
   }
 
   @override
@@ -79,41 +91,84 @@ class _InputScreenState extends State<InputScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            Text('ENTRADA:', style: HudText.operativa(c.text2, size: 12)),
-            const SizedBox(height: 6),
-            SizedBox(
-              height: 220,
-              child: HudChamferedBox(
-                fill: c.panel,
-                borderColor: c.text,
-                borderWidth: 1.5,
-                padding: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
-                    controller: _controller,
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    style: TextStyle(color: c.text, fontSize: 14),
-                    cursorColor: c.sys,
-                    decoration: InputDecoration(
-                      hintText: 'Pega tu devlog, retro o transcripción...',
-                      hintStyle: TextStyle(color: c.textDim),
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-              ),
+            HudSegmentedTabs(
+              labels: const ['GUIADO', 'LIBRE'],
+              selectedIndex: _mode.index,
+              onSelected: _loading
+                  ? (_) {}
+                  : (i) => setState(() => _mode = _InputMode.values[i]),
             ),
             const SizedBox(height: 16),
-            _loading
-                ? const Center(child: HudSyncIndicator())
-                : HudButton(label: 'GENERAR', onPressed: _generate),
-            const Spacer(),
+            Expanded(
+              child: _mode == _InputMode.guiado
+                  ? GuidedInputFlow(onComplete: _generateFromGuided, loading: _loading)
+                  : _LibreInput(
+                      controller: _controller,
+                      loading: _loading,
+                      onGenerate: _generate,
+                    ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'NOTA: la calidad del resultado depende del prompt ingresado '
+              'y del problema descrito.',
+              style: HudText.terminal(c.textDim, size: 11),
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LibreInput extends StatelessWidget {
+  const _LibreInput({
+    required this.controller,
+    required this.loading,
+    required this.onGenerate,
+  });
+
+  final TextEditingController controller;
+  final bool loading;
+  final VoidCallback onGenerate;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = HudColors.consola;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('ENTRADA:', style: HudText.operativa(c.text2, size: 12)),
+        const SizedBox(height: 6),
+        Expanded(
+          child: HudChamferedBox(
+            fill: c.panel,
+            borderColor: c.text,
+            borderWidth: 1.5,
+            padding: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: TextField(
+                controller: controller,
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                style: TextStyle(color: c.text, fontSize: 14),
+                cursorColor: c.sys,
+                decoration: InputDecoration(
+                  hintText: 'Pega tu devlog, retro o transcripción...',
+                  hintStyle: TextStyle(color: c.textDim),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        loading
+            ? const Center(child: HudSyncIndicator())
+            : HudButton(label: 'GENERAR', onPressed: onGenerate),
+      ],
     );
   }
 }

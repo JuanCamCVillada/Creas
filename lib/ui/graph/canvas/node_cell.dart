@@ -74,7 +74,12 @@ class GraphNodeCell extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (generationLabel != null)
-            Text(generationLabel!, style: HudText.terminal(c.textDim, size: 9)),
+            Text(
+              generationLabel!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: HudText.terminal(c.textDim, size: 9),
+            ),
           // Only the shape + its labels open the detail sheet — the badge
           // row below is a sibling, not a descendant, of this tap target.
           // Nesting a GestureDetector inside another (the previous

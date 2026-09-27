@@ -51,4 +51,34 @@ void main() {
     expect(rejected, isTrue);
     expect(tapped, isFalse);
   });
+
+  testWidgets(
+      'a long generation/cluster header label never overflows the fixed '
+      'cell — regression: it had no maxLines/ellipsis, so a long cluster '
+      'name or "PUNTO DE INFLEXIÓN"-style header wrapped to two lines and '
+      'overflowed the cell by ~5px', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: kGraphNodeCellSize.width,
+          height: kGraphNodeCellSize.height,
+          child: GraphNodeCell(
+            label: 'Patrón BLoC con manejo de estado reactivo y widgets desacoplados',
+            cluster: 'arquitectura-de-software-avanzada',
+            code: 'INF-01',
+            shapeKind: NodeShapeKind.diamond,
+            fill: Colors.blue,
+            icon: Icons.bolt,
+            onTap: () {},
+            generationLabel: 'ARQUITECTURA-DE-SOFTWARE-AVANZADA',
+            hasTurningPoint: true,
+            onTurningPointTap: () {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:creative/engine/generation_engine.dart';
+import 'package:creative/engine/graph_generation_client.dart';
 import 'package:creative/engine/graph_generator.dart';
 import 'package:creative/engine/llm_provider.dart';
 
@@ -202,5 +203,51 @@ void main() {
         throwsA(isA<GenerationFailedException>()),
       );
     });
+    test('sends the compacted input to the model but keeps the original in '
+        'the session', () async {
+      final seen = <String>[];
+      final client = _RecordingClient(_validArgs, seen);
+      final GraphGenerator engine = GenerationEngine(
+        clients: {LlmProvider.gemini: client},
+        apiKeyStore: FakeApiKeyStore('AIzaTest'),
+      );
+
+      final session = await engine.generate('hola   \n\n\n\nmundo  ');
+
+      expect(seen.single, 'hola\n\nmundo');
+      expect(session.rawInput, 'hola   \n\n\n\nmundo  ');
+    });
+
+    test('does not call the model at all for empty input — nothing to pay '
+        'for', () async {
+      final client = FakeGraphGenerationClient([_validArgs]);
+      final GraphGenerator engine = GenerationEngine(
+        clients: {LlmProvider.gemini: client},
+        apiKeyStore: FakeApiKeyStore('AIzaTest'),
+      );
+
+      await expectLater(
+        engine.generate('  \n\n  '),
+        throwsA(isA<GenerationFailedException>()),
+      );
+      expect(client.callCount, 0);
+    });
   });
+}
+
+class _RecordingClient implements GraphGenerationClient {
+  _RecordingClient(this._args, this.inputs);
+
+  final Map<String, dynamic> Function() _args;
+  final List<String> inputs;
+
+  @override
+  Future<Map<String, dynamic>> requestToolCall({
+    required String apiKey,
+    required String systemPrompt,
+    required String userInput,
+  }) async {
+    inputs.add(userInput);
+    return _args();
+  }
 }

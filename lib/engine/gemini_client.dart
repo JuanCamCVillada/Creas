@@ -11,6 +11,7 @@ class GeminiClient implements GraphGenerationClient {
     http.Client? httpClient,
     this.maxRetries = 3,
     this.baseRetryDelay = const Duration(seconds: 1),
+    this.onUsage,
   }) : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
@@ -25,6 +26,7 @@ class GeminiClient implements GraphGenerationClient {
   /// with the default maxRetries of 3). Tests pass Duration.zero so the
   /// retry path doesn't actually slow the suite down.
   final Duration baseRetryDelay;
+  final UsageLogger? onUsage;
 
   static const _model = 'gemini-3.6-flash';
   static const _endpoint =
@@ -69,6 +71,7 @@ class GeminiClient implements GraphGenerationClient {
           'allowedFunctionNames': [_functionName],
         },
       },
+      'generationConfig': {'maxOutputTokens': kMaxOutputTokens},
     });
 
     final retried = await postWithRetry(
@@ -97,6 +100,7 @@ class GeminiClient implements GraphGenerationClient {
     }
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    _reportUsage(decoded);
     final candidates = decoded['candidates'] as List<dynamic>?;
     if (candidates == null || candidates.isEmpty) {
       throw const LlmApiException('respuesta sin candidatos');
@@ -123,5 +127,14 @@ class GeminiClient implements GraphGenerationClient {
     final functionCall =
         functionCallPart['functionCall'] as Map<String, dynamic>;
     return functionCall['args'] as Map<String, dynamic>;
+  }
+
+  void _reportUsage(Map<String, dynamic> decoded) {
+    final log = onUsage;
+    final usage = decoded['usageMetadata'];
+    if (log == null || usage is! Map) return;
+    log('Gemini tokens · entrada ${usage['promptTokenCount'] ?? '?'}'
+        ' · salida ${usage['candidatesTokenCount'] ?? '?'}'
+        ' · razonamiento ${usage['thoughtsTokenCount'] ?? 0}');
   }
 }

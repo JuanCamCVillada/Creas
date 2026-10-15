@@ -15,6 +15,7 @@ class OpenAiClient implements GraphGenerationClient {
     this.model,
     this.maxRetries = 3,
     this.baseRetryDelay = const Duration(seconds: 1),
+    this.onUsage,
   }) : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
@@ -24,17 +25,21 @@ class OpenAiClient implements GraphGenerationClient {
   final String? model;
   final int maxRetries;
   final Duration baseRetryDelay;
+  final UsageLogger? onUsage;
 
   static const _baseUrl = 'https://api.openai.com/v1';
   static const _functionName = 'emit_creative_graph';
 
-  /// Best-fit first. Which models exist (and which an account can use)
-  /// changes too often to hardcode one and trust it — an earlier Gemini
+  /// Cheapest capable first. Which models exist (and which an account can
+  /// use) changes too often to hardcode one and trust it — an earlier Gemini
   /// model id that simply didn't exist cost three 404s — so the client asks
   /// the API what's available and takes the first of these it finds.
+  ///
+  /// Deliberately all non-reasoning models: a reasoning model (gpt-5-mini,
+  /// o-series) bills hidden thinking tokens as output on top of the graph
+  /// itself, which for a structured-extraction job is cost without benefit.
   static const _preferredModels = [
     'gpt-4.1-mini',
-    'gpt-5-mini',
     'gpt-4o-mini',
     'gpt-4.1',
     'gpt-4o',
@@ -108,6 +113,7 @@ class OpenAiClient implements GraphGenerationClient {
         'type': 'function',
         'function': {'name': _functionName},
       },
+      'max_completion_tokens': kMaxOutputTokens,
     });
 
     final retried = await postWithRetry(
@@ -142,6 +148,7 @@ class OpenAiClient implements GraphGenerationClient {
     }
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    _reportUsage(decoded);
     final choices = decoded['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) {
       throw const LlmApiException('respuesta sin choices');
@@ -163,5 +170,17 @@ class OpenAiClient implements GraphGenerationClient {
     } on FormatException {
       throw const LlmApiException('los argumentos de la función no son JSON válido');
     }
+  }
+
+  void _reportUsage(Map<String, dynamic> decoded) {
+    final log = onUsage;
+    final usage = decoded['usage'];
+    if (log == null || usage is! Map) return;
+    final reasoning = (usage['completion_tokens_details'] as Map?)?['reasoning_tokens'] ?? 0;
+    final cached = (usage['prompt_tokens_details'] as Map?)?['cached_tokens'] ?? 0;
+    log('OpenAI tokens · entrada ${usage['prompt_tokens'] ?? '?'}'
+        ' (en caché $cached)'
+        ' · salida ${usage['completion_tokens'] ?? '?'}'
+        ' (razonamiento $reasoning)');
   }
 }

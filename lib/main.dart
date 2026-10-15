@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,8 +21,10 @@ Future<void> main() async {
     apiKeyStore: apiKeyStore,
     generator: GenerationEngine(
       clients: {
-        LlmProvider.gemini: GeminiClient(),
-        LlmProvider.openai: OpenAiClient(),
+        // In debug builds, print each request's token usage so what a
+        // generation really costs can be read off instead of estimated.
+        LlmProvider.gemini: GeminiClient(onUsage: kDebugMode ? debugPrint : null),
+        LlmProvider.openai: OpenAiClient(onUsage: kDebugMode ? debugPrint : null),
       },
       apiKeyStore: apiKeyStore,
     ),

@@ -26,10 +26,9 @@ Map<String, dynamic> toStandardJsonSchema(Map<String, dynamic> geminiSchema) {
 const Map<String, dynamic> emitCreativeGraphToolSchema = {
   'name': 'emit_creative_graph',
   'description':
-      'Emit the extracted creative-provenance graph: Fuente/Concepto nodes, '
-      'the directed lineage between them, the undirected affinity edges for '
-      'the Jardín Digital view, candidate turning points, and any follow-up '
-      'questions needed when the input is too thin to build a lineage.',
+      'Emit the creative-provenance graph: Fuente/Concepto nodes, directed '
+      'lineage edges, affinity edges, candidate turning points, and '
+      'follow-up questions when the input is too thin.',
   // Gemini's function-declaration Schema uses UPPERCASE type names (STRING,
   // OBJECT, ARRAY, NUMBER, INTEGER) and requires format:"enum" alongside any
   // string enum — see https://ai.google.dev/api/generate-content (Schema).
@@ -56,8 +55,9 @@ const Map<String, dynamic> emitCreativeGraphToolSchema = {
               'enum': ['usuario', 'sugerido'],
             },
             'confidence': {'type': 'NUMBER'},
-            'timestamp': {'type': 'STRING'},
-            'sequence': {'type': 'INTEGER'},
+            // No timestamp / sequence: nothing in the app reads them, and
+            // the model would write both for every node on every request.
+            // Node still parses them, so sessions saved earlier load fine.
             'level': {'type': 'INTEGER'},
             'referente_of': {'type': 'STRING'},
             'icon': {

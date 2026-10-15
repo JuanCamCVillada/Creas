@@ -82,7 +82,7 @@ void main() {
         expect((converted['properties'] as Map)['nodes']['type'], 'array');
         expect((nodeProps['label'] as Map)['type'], 'string');
         expect((nodeProps['confidence'] as Map)['type'], 'number');
-        expect((nodeProps['sequence'] as Map)['type'], 'integer');
+        expect((nodeProps['level'] as Map)['type'], 'integer');
       });
 
       test('drops the Gemini-only format:"enum" marker but keeps the enum', () {
@@ -109,6 +109,21 @@ void main() {
             as Map)['properties'] as Map;
         expect((originalProps['type'] as Map)['format'], 'enum');
       });
+    });
+
+    test('does not ask the model for fields nothing in the app reads', () {
+      // timestamp and sequence were requested for every node but never used
+      // anywhere, so each generation paid output tokens for nothing. Node
+      // still parses them so sessions saved earlier keep loading.
+      final inputSchema =
+          emitCreativeGraphToolSchema['input_schema'] as Map<String, dynamic>;
+      final properties = inputSchema['properties'] as Map<String, dynamic>;
+      final nodeProperties = ((properties['nodes'] as Map)['items'] as Map)['properties'] as Map;
+
+      expect(nodeProperties.containsKey('timestamp'), isFalse);
+      expect(nodeProperties.containsKey('sequence'), isFalse);
+      // The ones the UI does use are still there.
+      expect(nodeProperties.keys, containsAll(['level', 'referente_of', 'confidence', 'icon']));
     });
 
     test('edge schema enumerates the four lineage relations', () {

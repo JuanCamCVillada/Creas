@@ -6,30 +6,39 @@ import '../theme/hud_tokens.dart';
 import '../theme/hud_widgets.dart';
 
 class _GuidedQuestion {
-  const _GuidedQuestion({required this.label, required this.hint});
+  const _GuidedQuestion({required this.label, required this.tag, required this.hint});
   final String label;
+
+  /// Short stand-in for [label] in the text sent to the model: it still says
+  /// what each answer is, without paying for the whole question every time.
+  final String tag;
   final String hint;
 }
 
 const _questions = [
   _GuidedQuestion(
     label: '¿QUÉ PROBLEMA U OBJETIVO ESTABAS RESOLVIENDO?',
+    tag: 'PROBLEMA',
     hint: 'El bug, la duda o la meta que arrancó todo esto.',
   ),
   _GuidedQuestion(
     label: '¿QUÉ FUENTES USASTE? (charlas, libros, personas, artículos)',
+    tag: 'FUENTES',
     hint: 'Todo lo que leíste, viste o consultaste en el camino.',
   ),
   _GuidedQuestion(
     label: '¿QUÉ INTENTASTE PRIMERO Y NO FUNCIONÓ?',
+    tag: 'PRIMER INTENTO',
     hint: 'El primer enfoque que probaste, aunque haya fracasado.',
   ),
   _GuidedQuestion(
     label: '¿HUBO UN CAMBIO DE ENFOQUE? ¿QUÉ LO CAUSÓ?',
+    tag: 'CAMBIO DE ENFOQUE',
     hint: 'El momento donde algo te hizo cambiar de rumbo.',
   ),
   _GuidedQuestion(
     label: '¿CÓMO TERMINASTE RESOLVIÉNDOLO?',
+    tag: 'RESOLUCIÓN',
     hint: 'El resultado final: qué patrón, decisión o solución usaste.',
   ),
 ];
@@ -85,10 +94,7 @@ class _GuidedInputFlowState extends State<GuidedInputFlow> {
   void _submit() {
     final buffer = StringBuffer();
     for (var i = 0; i < _questions.length; i++) {
-      buffer
-        ..writeln(_questions[i].label)
-        ..writeln(_controllers[i].text.trim())
-        ..writeln();
+      buffer.writeln('${_questions[i].tag}: ${_controllers[i].text.trim()}');
     }
     widget.onComplete(buffer.toString().trim());
   }

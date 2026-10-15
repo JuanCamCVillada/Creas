@@ -93,12 +93,12 @@ void main() {
       expect((nodeProps['type'] as Map).containsKey('format'), isFalse);
     });
 
-    test('picks the best model the account actually has', () async {
+    test('picks the cheapest capable model the account actually has', () async {
       String? modelUsed;
       final client = _client((request) async {
         if (request.url.path.endsWith('/models')) {
           // No gpt-4.1-mini, so the next preference should win.
-          return _models(['whisper-1', 'gpt-4o', 'gpt-4o-mini', 'gpt-5-mini']);
+          return _models(['whisper-1', 'gpt-4o', 'gpt-4o-mini']);
         }
         modelUsed = (jsonDecode(request.body) as Map<String, dynamic>)['model'] as String;
         return _toolCall({});
@@ -106,7 +106,71 @@ void main() {
 
       await _call(client);
 
-      expect(modelUsed, 'gpt-5-mini');
+      expect(modelUsed, 'gpt-4o-mini');
+    });
+
+    test('never picks a reasoning model even when it is available — its '
+        'hidden thinking tokens are billed as output for no gain here',
+        () async {
+      String? modelUsed;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) {
+          return _models(['gpt-5-mini', 'gpt-5', 'o4-mini', 'gpt-4o']);
+        }
+        modelUsed = (jsonDecode(request.body) as Map<String, dynamic>)['model'] as String;
+        return _toolCall({});
+      });
+
+      await _call(client);
+
+      expect(modelUsed, 'gpt-4o');
+    });
+
+    test('caps how much a single generation may write', () async {
+      late Map<String, dynamic> sentBody;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return _toolCall({});
+      });
+
+      await _call(client);
+
+      expect(sentBody['max_completion_tokens'], kMaxOutputTokens);
+    });
+
+    test('reports token usage, including cached and reasoning tokens, when '
+        'asked to', () async {
+      final lines = <String>[];
+      final client = OpenAiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+          final body = jsonDecode(_toolCall({}).body) as Map<String, dynamic>;
+          body['usage'] = {
+            'prompt_tokens': 1900,
+            'completion_tokens': 1450,
+            'prompt_tokens_details': {'cached_tokens': 1024},
+            'completion_tokens_details': {'reasoning_tokens': 0},
+          };
+          return http.Response(jsonEncode(body), 200);
+        }),
+        baseRetryDelay: Duration.zero,
+        onUsage: lines.add,
+      );
+
+      await _call(client);
+
+      expect(lines, hasLength(1));
+      expect(lines.single, allOf(contains('1900'), contains('1450'), contains('1024')));
+    });
+
+    test('stays silent about usage when no logger is given', () async {
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        return _toolCall({});
+      });
+
+      await expectLater(_call(client), completes);
     });
 
     test('asks for the model list only once per key', () async {

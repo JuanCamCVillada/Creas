@@ -69,8 +69,13 @@ void main() {
     for (final answer in answers) {
       expect(combined, contains(answer));
     }
-    expect(combined, contains('¿QUÉ PROBLEMA U OBJETIVO ESTABAS RESOLVIENDO?'));
-    expect(combined, contains('¿CÓMO TERMINASTE RESOLVIÉNDOLO?'));
+    // Each answer is still labeled with what it is...
+    expect(combined, contains('PROBLEMA: ${answers.first}'));
+    expect(combined, contains('RESOLUCIÓN: ${answers.last}'));
+    // ...but with a short tag, not the full on-screen question, which would
+    // be paid for as input tokens on every generation.
+    expect(combined, isNot(contains('¿QUÉ PROBLEMA U OBJETIVO')));
+    expect(combined, isNot(contains('¿CÓMO TERMINASTE')));
   });
 
   testWidgets('shows a determinate step progress bar, not the indeterminate sweep',

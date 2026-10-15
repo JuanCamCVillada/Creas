@@ -114,6 +114,77 @@ void main() {
       );
     });
 
+    test('caps how much a single generation may write', () async {
+      late Map<String, dynamic> sentBody;
+      final mockClient = MockClient((request) async {
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'functionCall': {'name': 'emit_creative_graph', 'args': {}},
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      await GeminiClient(httpClient: mockClient).requestToolCall(
+        apiKey: 'test-key',
+        systemPrompt: 'system',
+        userInput: 'input',
+      );
+
+      expect(
+        (sentBody['generationConfig'] as Map)['maxOutputTokens'],
+        kMaxOutputTokens,
+      );
+    });
+
+    test('reports token usage, including thinking tokens, when asked to',
+        () async {
+      final lines = <String>[];
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {
+                      'functionCall': {'name': 'emit_creative_graph', 'args': {}},
+                    },
+                  ],
+                },
+              },
+            ],
+            'usageMetadata': {
+              'promptTokenCount': 2100,
+              'candidatesTokenCount': 1380,
+              'thoughtsTokenCount': 640,
+            },
+          }),
+          200,
+        );
+      });
+
+      await GeminiClient(httpClient: mockClient, onUsage: lines.add).requestToolCall(
+        apiKey: 'test-key',
+        systemPrompt: 'system',
+        userInput: 'input',
+      );
+
+      expect(lines, hasLength(1));
+      expect(lines.single, allOf(contains('2100'), contains('1380'), contains('640')));
+    });
+
     test('retries on a 503 and succeeds once the model responds', () async {
       var callCount = 0;
       final mockClient = MockClient((request) async {

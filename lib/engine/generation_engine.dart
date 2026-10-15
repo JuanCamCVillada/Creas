@@ -5,6 +5,7 @@ import 'graph_generation_client.dart';
 import 'graph_generator.dart';
 import 'graph_parser.dart';
 import 'graph_verifier.dart';
+import 'input_compaction.dart';
 import 'llm_provider.dart';
 import 'system_prompt.dart';
 
@@ -22,6 +23,13 @@ class GenerationEngine implements GraphGenerator {
 
   @override
   Future<GraphSession> generate(String rawInput) async {
+    // Nothing to analyze: don't pay for a request that can only come back
+    // as "please give me something".
+    final userInput = compactInput(rawInput);
+    if (userInput.isEmpty) {
+      throw const GenerationFailedException('escribe algo para analizar');
+    }
+
     final apiKey = await _apiKeyStore.getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw const GenerationFailedException(
@@ -48,7 +56,7 @@ class GenerationEngine implements GraphGenerator {
         final rawArgs = await client.requestToolCall(
           apiKey: apiKey,
           systemPrompt: creativeGraphSystemPrompt,
-          userInput: rawInput,
+          userInput: userInput,
         );
         final parsed = parseCreativeGraph(rawArgs);
         verifiedGraph = verifyGraph(parsed);

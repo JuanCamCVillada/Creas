@@ -10,11 +10,21 @@ typedef UsageLogger = void Function(String line);
 /// cutting a response off mid-graph would fail the generation outright.
 const int kMaxOutputTokens = 16000;
 
+/// How long one request may take. A graph is ~2k output tokens, which comes
+/// back in well under a minute, so this only fires on a provider that has
+/// hung — and then fails the attempt fast enough for a fallback to be useful.
+const Duration kRequestTimeout = Duration(seconds: 90);
+
 abstract class GraphGenerationClient {
+  /// [maxRetries] overrides how many times a transient failure (an overloaded
+  /// model, a rate limit) is retried before giving up. The engine lowers it
+  /// when another provider is standing by: waiting through several backoffs
+  /// on a struggling provider is worse than switching to the fallback.
   Future<Map<String, dynamic>> requestToolCall({
     required String apiKey,
     required String systemPrompt,
     required String userInput,
+    int? maxRetries,
   });
 }
 

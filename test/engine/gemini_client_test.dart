@@ -259,6 +259,66 @@ void main() {
       expect(callCount, 3);
     });
 
+    test('a per-call retry limit beats the client default', () async {
+      var callCount = 0;
+      final mockClient = MockClient((request) async {
+        callCount++;
+        return http.Response('{"error": {"code": 503}}', 503);
+      });
+      final client = GeminiClient(
+        httpClient: mockClient,
+        maxRetries: 3,
+        baseRetryDelay: Duration.zero,
+      );
+
+      await expectLater(
+        client.requestToolCall(
+          apiKey: 'test-key',
+          systemPrompt: 'system',
+          userInput: 'input',
+          maxRetries: 0,
+        ),
+        throwsA(isA<LlmApiException>()),
+      );
+      expect(callCount, 1);
+    });
+
+    test('a network failure becomes an LlmApiException naming Gemini', () async {
+      final client = GeminiClient(
+        httpClient: MockClient((_) async => throw http.ClientException('offline')),
+        baseRetryDelay: Duration.zero,
+      );
+
+      await expectLater(
+        client.requestToolCall(apiKey: 'k', systemPrompt: 's', userInput: 'i'),
+        throwsA(isA<LlmApiException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('Gemini'), contains('offline')),
+        )),
+      );
+    });
+
+    test('a request that never answers fails instead of hanging, so a '
+        'fallback can take over', () async {
+      final client = GeminiClient(
+        httpClient: MockClient((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          return http.Response('{}', 200);
+        }),
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      await expectLater(
+        client.requestToolCall(apiKey: 'k', systemPrompt: 's', userInput: 'i'),
+        throwsA(isA<LlmApiException>().having(
+          (e) => e.message,
+          'message',
+          contains('no respondió'),
+        )),
+      );
+    });
+
     test('does not retry a non-transient error like 401', () async {
       var callCount = 0;
       final mockClient = MockClient((request) async {

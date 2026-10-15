@@ -12,15 +12,21 @@ class CreativeApp extends StatelessWidget {
     required this.sessionStore,
     required this.apiKeyStore,
     required this.generator,
+    this.scaffoldMessengerKey,
   });
 
   final SessionStore sessionStore;
   final ApiKeyStore apiKeyStore;
   final GraphGenerator generator;
 
+  /// Lets code outside the widget tree (the generation engine reporting a
+  /// failover) show a SnackBar on whichever screen is current.
+  final GlobalKey<ScaffoldMessengerState>? scaffoldMessengerKey;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       title: 'Genealogía Creativa',
       theme: _hudMaterialTheme(HudColors.dia),

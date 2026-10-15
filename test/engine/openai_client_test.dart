@@ -287,6 +287,42 @@ void main() {
       );
     });
 
+    test('a per-call retry limit beats the client default', () async {
+      var completions = 0;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        completions++;
+        return http.Response('{}', 503);
+      }, maxRetries: 3);
+
+      await expectLater(
+        client.requestToolCall(
+          apiKey: 'sk-test',
+          systemPrompt: 'system',
+          userInput: 'input',
+          maxRetries: 0,
+        ),
+        throwsA(isA<LlmApiException>()),
+      );
+      expect(completions, 1);
+    });
+
+    test('a network failure becomes an LlmApiException naming OpenAI', () async {
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        throw http.ClientException('offline');
+      });
+
+      await expectLater(
+        _call(client),
+        throwsA(isA<LlmApiException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('OpenAI'), contains('offline')),
+        )),
+      );
+    });
+
     test('does not retry a 401', () async {
       var completions = 0;
       final client = _client((request) async {

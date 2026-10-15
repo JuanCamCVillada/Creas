@@ -3,6 +3,7 @@ import 'package:creative/engine/generation_engine.dart';
 import 'package:creative/engine/graph_generation_client.dart';
 import 'package:creative/engine/graph_generator.dart';
 import 'package:creative/engine/llm_provider.dart';
+import 'package:creative/storage/api_key_store.dart';
 
 import '../helpers/fakes.dart';
 
@@ -61,13 +62,29 @@ Map<String, dynamic> _cyclicArgs() => {
       'followup_questions': <String>[],
     };
 
+final _geminiKey = {LlmProvider.gemini: 'AIzaGeminiKey'};
+final _bothKeys = {
+  LlmProvider.gemini: 'AIzaGeminiKey',
+  LlmProvider.openai: 'sk-proj-openaiKey',
+};
+
+/// A response that fails the way a provider does when it is down.
+Map<String, dynamic> _down([String reason = 'está sobrecargado (503)']) =>
+    throw LlmApiException(reason);
+
+GenerationEngine _engine(
+  Map<LlmProvider, GraphGenerationClient> clients,
+  FakeApiKeyStore store, {
+  FailoverListener? onFailover,
+}) =>
+    GenerationEngine(clients: clients, apiKeyStore: store, onFailover: onFailover);
+
 void main() {
   group('GenerationEngine', () {
     test('returns a saved GraphSession on the first successful attempt', () async {
-      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([_validArgs]);
       final GraphGenerator engine =
-          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
+          _engine({LlmProvider.gemini: client}, FakeApiKeyStore(keys: _geminiKey));
 
       final session = await engine.generate('input de prueba');
 
@@ -77,13 +94,12 @@ void main() {
     });
 
     test('retries once after a malformed response, then succeeds', () async {
-      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([
         () => {'nodes': 'not-a-list'},
         _validArgs,
       ]);
       final GraphGenerator engine =
-          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
+          _engine({LlmProvider.gemini: client}, FakeApiKeyStore(keys: _geminiKey));
 
       final session = await engine.generate('input de prueba');
 
@@ -92,13 +108,12 @@ void main() {
     });
 
     test('throws GenerationFailedException after two malformed responses', () async {
-      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([
         () => {'nodes': 'not-a-list'},
         () => {'nodes': 'still-not-a-list'},
       ]);
       final GraphGenerator engine =
-          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
+          _engine({LlmProvider.gemini: client}, FakeApiKeyStore(keys: _geminiKey));
 
       expect(
         () => engine.generate('input de prueba'),
@@ -107,10 +122,9 @@ void main() {
     });
 
     test('retries once after a cyclic lineage, then succeeds', () async {
-      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([_cyclicArgs, _validArgs]);
       final GraphGenerator engine =
-          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
+          _engine({LlmProvider.gemini: client}, FakeApiKeyStore(keys: _geminiKey));
 
       final session = await engine.generate('input de prueba');
 
@@ -120,10 +134,8 @@ void main() {
     });
 
     test('throws GenerationFailedException when no API key is configured', () async {
-      final apiKeyStore = FakeApiKeyStore();
       final client = FakeGraphGenerationClient([_validArgs]);
-      final GraphGenerator engine =
-          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
+      final GraphGenerator engine = _engine({LlmProvider.gemini: client}, FakeApiKeyStore());
 
       expect(
         () => engine.generate('input de prueba'),
@@ -131,86 +143,13 @@ void main() {
       );
       expect(client.callCount, 0);
     });
-    test('routes to the OpenAI client when the key is an OpenAI key', () async {
-      final apiKeyStore = FakeApiKeyStore('sk-proj-abc123');
-      final gemini = FakeGraphGenerationClient([_validArgs]);
-      final openai = FakeGraphGenerationClient([_validArgs]);
-      final GraphGenerator engine = GenerationEngine(
-        clients: {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
-        apiKeyStore: apiKeyStore,
-      );
 
-      await engine.generate('input de prueba');
-
-      expect(openai.callCount, 1);
-      expect(gemini.callCount, 0);
-    });
-
-    test('routes to the Gemini client when the key is a Gemini key', () async {
-      final apiKeyStore = FakeApiKeyStore('AIzaSyExample');
-      final gemini = FakeGraphGenerationClient([_validArgs]);
-      final openai = FakeGraphGenerationClient([_validArgs]);
-      final GraphGenerator engine = GenerationEngine(
-        clients: {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
-        apiKeyStore: apiKeyStore,
-      );
-
-      await engine.generate('input de prueba');
-
-      expect(gemini.callCount, 1);
-      expect(openai.callCount, 0);
-    });
-
-    test('an explicit provider choice overrides what the key looks like', () async {
-      // A key whose shape says OpenAI, but the user pinned Gemini.
-      final apiKeyStore = FakeApiKeyStore('sk-proj-abc123', LlmProvider.gemini);
-      final gemini = FakeGraphGenerationClient([_validArgs]);
-      final openai = FakeGraphGenerationClient([_validArgs]);
-      final GraphGenerator engine = GenerationEngine(
-        clients: {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
-        apiKeyStore: apiKeyStore,
-      );
-
-      await engine.generate('input de prueba');
-
-      expect(gemini.callCount, 1);
-      expect(openai.callCount, 0);
-    });
-
-    test('falls back to Gemini for a key whose shape is unrecognized', () async {
-      // Keeps keys saved before provider selection existed working.
-      final apiKeyStore = FakeApiKeyStore('some-unknown-format');
-      final gemini = FakeGraphGenerationClient([_validArgs]);
-      final GraphGenerator engine = GenerationEngine(
-        clients: {LlmProvider.gemini: gemini},
-        apiKeyStore: apiKeyStore,
-      );
-
-      await engine.generate('input de prueba');
-
-      expect(gemini.callCount, 1);
-    });
-
-    test('throws when the resolved provider has no client registered', () async {
-      final apiKeyStore = FakeApiKeyStore('sk-proj-abc123');
-      final GraphGenerator engine = GenerationEngine(
-        clients: {LlmProvider.gemini: FakeGraphGenerationClient([_validArgs])},
-        apiKeyStore: apiKeyStore,
-      );
-
-      expect(
-        () => engine.generate('input de prueba'),
-        throwsA(isA<GenerationFailedException>()),
-      );
-    });
     test('sends the compacted input to the model but keeps the original in '
         'the session', () async {
       final seen = <String>[];
       final client = _RecordingClient(_validArgs, seen);
-      final GraphGenerator engine = GenerationEngine(
-        clients: {LlmProvider.gemini: client},
-        apiKeyStore: FakeApiKeyStore('AIzaTest'),
-      );
+      final GraphGenerator engine =
+          _engine({LlmProvider.gemini: client}, FakeApiKeyStore(keys: _geminiKey));
 
       final session = await engine.generate('hola   \n\n\n\nmundo  ');
 
@@ -221,16 +160,278 @@ void main() {
     test('does not call the model at all for empty input — nothing to pay '
         'for', () async {
       final client = FakeGraphGenerationClient([_validArgs]);
-      final GraphGenerator engine = GenerationEngine(
-        clients: {LlmProvider.gemini: client},
-        apiKeyStore: FakeApiKeyStore('AIzaTest'),
-      );
+      final GraphGenerator engine =
+          _engine({LlmProvider.gemini: client}, FakeApiKeyStore(keys: _geminiKey));
 
       await expectLater(
         engine.generate('  \n\n  '),
         throwsA(isA<GenerationFailedException>()),
       );
       expect(client.callCount, 0);
+    });
+  });
+
+  group('which provider is tried', () {
+    test('a Gemini key goes to the Gemini client with that key', () async {
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: _geminiKey),
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.apiKeysSeen, ['AIzaGeminiKey']);
+      expect(openai.callCount, 0);
+    });
+
+    test('an OpenAI-only setup goes to the OpenAI client', () async {
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: {LlmProvider.openai: 'sk-proj-openaiKey'}),
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(openai.apiKeysSeen, ['sk-proj-openaiKey']);
+      expect(gemini.callCount, 0);
+    });
+
+    test('with both configured, Gemini goes first by default', () async {
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: _bothKeys),
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.callCount, 1);
+      expect(openai.callCount, 0);
+    });
+
+    test('the chosen primary is tried first, each client getting its own key',
+        () async {
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: _bothKeys, primary: LlmProvider.openai),
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(openai.apiKeysSeen, ['sk-proj-openaiKey']);
+      expect(gemini.callCount, 0);
+    });
+
+    test('a primary with no key is ignored', () async {
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: _geminiKey, primary: LlmProvider.openai),
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.callCount, 1);
+      expect(openai.callCount, 0);
+    });
+  });
+
+  group('failover', () {
+    test('a provider that is down hands the job to the next one', () async {
+      final gemini = FakeGraphGenerationClient([_down]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: _bothKeys),
+      );
+
+      final session = await engine.generate('input de prueba');
+
+      expect(session.graph.nodes, hasLength(2));
+      expect(gemini.callCount, 1);
+      expect(openai.apiKeysSeen, ['sk-proj-openaiKey']);
+    });
+
+    test('tells the listener which provider failed, why, and who served it',
+        () async {
+      FailoverNotice? notice;
+      final engine = _engine(
+        {
+          LlmProvider.gemini: FakeGraphGenerationClient([() => _down('Gemini está sobrecargado')]),
+          LlmProvider.openai: FakeGraphGenerationClient([_validArgs]),
+        },
+        FakeApiKeyStore(keys: _bothKeys),
+        onFailover: (n) => notice = n,
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(notice, isNotNull);
+      expect(notice!.used, LlmProvider.openai);
+      expect(notice!.failed.single.provider, LlmProvider.gemini);
+      expect(notice!.failed.single.reason, 'Gemini está sobrecargado');
+    });
+
+    test('stays silent when the first provider simply works', () async {
+      var notices = 0;
+      final engine = _engine(
+        {
+          LlmProvider.gemini: FakeGraphGenerationClient([_validArgs]),
+          LlmProvider.openai: FakeGraphGenerationClient([_validArgs]),
+        },
+        FakeApiKeyStore(keys: _bothKeys),
+        onFailover: (_) => notices++,
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(notices, 0);
+    });
+
+    test('falls over when a provider keeps returning unusable graphs, too',
+        () async {
+      final gemini = FakeGraphGenerationClient([
+        () => {'nodes': 'not-a-list'},
+        () => {'nodes': 'still-not-a-list'},
+      ]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      FailoverNotice? notice;
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: _bothKeys),
+        onFailover: (n) => notice = n,
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.callCount, 2); // its own retry first
+      expect(openai.callCount, 1);
+      expect(notice!.failed.single.reason, contains('no se pudo generar el grafo'));
+    });
+
+    test('a bad key on the primary is skipped over, not fatal', () async {
+      final engine = _engine(
+        {
+          LlmProvider.gemini: FakeGraphGenerationClient(
+              [() => throw const LlmApiException('Gemini API devolvió 400: API key not valid')]),
+          LlmProvider.openai: FakeGraphGenerationClient([_validArgs]),
+        },
+        FakeApiKeyStore(keys: _bothKeys),
+      );
+
+      final session = await engine.generate('input de prueba');
+
+      expect(session.graph.nodes, hasLength(2));
+    });
+
+    test('with a fallback standing by the primary gets only one quick retry',
+        () async {
+      final gemini = FakeGraphGenerationClient([_down]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        FakeApiKeyStore(keys: _bothKeys),
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.maxRetriesSeen, [1]);
+      // The last provider has nowhere to hand off to, so it keeps the
+      // client's own, larger default.
+      expect(openai.maxRetriesSeen, [null]);
+    });
+
+    test('a lone provider keeps its full retry budget', () async {
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine({LlmProvider.gemini: gemini}, FakeApiKeyStore(keys: _geminiKey));
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.maxRetriesSeen, [null]);
+    });
+
+    test('when every provider fails the error names each of them', () async {
+      final engine = _engine(
+        {
+          LlmProvider.gemini: FakeGraphGenerationClient([() => _down('Gemini está sobrecargado')]),
+          LlmProvider.openai: FakeGraphGenerationClient([() => _down('OpenAI sin cuota')]),
+        },
+        FakeApiKeyStore(keys: _bothKeys),
+      );
+
+      await expectLater(
+        engine.generate('input de prueba'),
+        throwsA(isA<GenerationFailedException>().having(
+          (e) => e.message,
+          'message',
+          allOf(
+            contains('GEMINI: Gemini está sobrecargado'),
+            contains('OPENAI: OpenAI sin cuota'),
+          ),
+        )),
+      );
+    });
+
+    test('with a single provider the error is just the reason, as before',
+        () async {
+      final engine = _engine(
+        {LlmProvider.gemini: FakeGraphGenerationClient([() => _down('Gemini está sobrecargado')])},
+        FakeApiKeyStore(keys: _geminiKey),
+      );
+
+      await expectLater(
+        engine.generate('input de prueba'),
+        throwsA(isA<GenerationFailedException>().having(
+          (e) => e.message,
+          'message',
+          'Gemini está sobrecargado',
+        )),
+      );
+    });
+
+    test('no listener call when everything failed — there is no provider that '
+        'served it', () async {
+      var notices = 0;
+      final engine = _engine(
+        {
+          LlmProvider.gemini: FakeGraphGenerationClient([_down]),
+          LlmProvider.openai: FakeGraphGenerationClient([_down]),
+        },
+        FakeApiKeyStore(keys: _bothKeys),
+        onFailover: (_) => notices++,
+      );
+
+      await expectLater(
+          engine.generate('input de prueba'), throwsA(isA<GenerationFailedException>()));
+      expect(notices, 0);
+    });
+
+    test('a provider with a key but no client counts as failed, not a crash',
+        () async {
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final engine = _engine(
+        {LlmProvider.openai: openai}, // no Gemini client registered
+        FakeApiKeyStore(keys: _bothKeys),
+      );
+
+      final session = await engine.generate('input de prueba');
+
+      expect(session.graph.nodes, hasLength(2));
+    });
+
+    test('the credential order is exactly what the store reports', () async {
+      final store = FakeApiKeyStore(keys: _bothKeys, primary: LlmProvider.openai);
+      final order = await store.credentialsInOrder();
+
+      expect(order.map((c) => c.provider), [LlmProvider.openai, LlmProvider.gemini]);
     });
   });
 }
@@ -246,6 +447,7 @@ class _RecordingClient implements GraphGenerationClient {
     required String apiKey,
     required String systemPrompt,
     required String userInput,
+    int? maxRetries,
   }) async {
     inputs.add(userInput);
     return _args();

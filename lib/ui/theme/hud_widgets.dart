@@ -127,7 +127,16 @@ class HudButton extends StatelessWidget {
             else
               Text('▶', style: TextStyle(color: c.sys, fontSize: 14)),
             const SizedBox(width: 8),
-            Text(label, style: HudText.operativa(c.sys, size: 15)),
+            // Flexible so a long label ("VALIDAR Y AGREGAR") shrinks to an
+            // ellipsis on a narrow screen instead of overflowing the button.
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: HudText.operativa(c.sys, size: 15),
+              ),
+            ),
           ],
         ),
       ),
@@ -205,11 +214,16 @@ class HudSegmentedTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = HudColors.consola;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // A Wrap, not a Row: three tabs (AUTO / GEMINI / OPENAI) are wider than
+    // the smallest phones leave room for, and a Row there overflows. Wrap
+    // lays out on one line when it fits — also inside a parent Row, where
+    // its width is unbounded — and drops the last tab to a second line when
+    // it doesn't.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
-        for (var i = 0; i < labels.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
+        for (var i = 0; i < labels.length; i++)
           InkWell(
             onTap: () => onSelected(i),
             child: Container(
@@ -224,7 +238,6 @@ class HudSegmentedTabs extends StatelessWidget {
               ),
             ),
           ),
-        ],
       ],
     );
   }

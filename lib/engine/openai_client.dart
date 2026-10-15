@@ -15,6 +15,7 @@ class OpenAiClient implements GraphGenerationClient {
     this.model,
     this.maxRetries = 3,
     this.baseRetryDelay = const Duration(seconds: 1),
+    this.requestTimeout = kRequestTimeout,
     this.onUsage,
   }) : _httpClient = httpClient ?? http.Client();
 
@@ -25,6 +26,7 @@ class OpenAiClient implements GraphGenerationClient {
   final String? model;
   final int maxRetries;
   final Duration baseRetryDelay;
+  final Duration requestTimeout;
   final UsageLogger? onUsage;
 
   static const _baseUrl = 'https://api.openai.com/v1';
@@ -88,6 +90,7 @@ class OpenAiClient implements GraphGenerationClient {
     required String apiKey,
     required String systemPrompt,
     required String userInput,
+    int? maxRetries,
   }) async {
     final resolvedModel = await _resolveModel(apiKey);
 
@@ -124,8 +127,10 @@ class OpenAiClient implements GraphGenerationClient {
         'authorization': 'Bearer $apiKey',
       },
       body: body,
-      maxRetries: maxRetries,
+      providerName: 'OpenAI',
+      maxRetries: maxRetries ?? this.maxRetries,
       baseDelay: baseRetryDelay,
+      timeout: requestTimeout,
       isTransient: _isTransient,
     );
     final response = retried.response;

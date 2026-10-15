@@ -11,6 +11,7 @@ class GeminiClient implements GraphGenerationClient {
     http.Client? httpClient,
     this.maxRetries = 3,
     this.baseRetryDelay = const Duration(seconds: 1),
+    this.requestTimeout = kRequestTimeout,
     this.onUsage,
   }) : _httpClient = httpClient ?? http.Client();
 
@@ -26,6 +27,7 @@ class GeminiClient implements GraphGenerationClient {
   /// with the default maxRetries of 3). Tests pass Duration.zero so the
   /// retry path doesn't actually slow the suite down.
   final Duration baseRetryDelay;
+  final Duration requestTimeout;
   final UsageLogger? onUsage;
 
   static const _model = 'gemini-3.6-flash';
@@ -39,6 +41,7 @@ class GeminiClient implements GraphGenerationClient {
     required String apiKey,
     required String systemPrompt,
     required String userInput,
+    int? maxRetries,
   }) async {
     final body = jsonEncode({
       'contents': [
@@ -82,8 +85,10 @@ class GeminiClient implements GraphGenerationClient {
         'x-goog-api-key': apiKey,
       },
       body: body,
-      maxRetries: maxRetries,
+      providerName: 'Gemini',
+      maxRetries: maxRetries ?? this.maxRetries,
       baseDelay: baseRetryDelay,
+      timeout: requestTimeout,
       isTransient: (r) => _retryableStatusCodes.contains(r.statusCode),
     );
     final response = retried.response;

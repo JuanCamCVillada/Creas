@@ -68,3 +68,8 @@ derecha): pega una clave de **Gemini** (`AIza…`) o de **OpenAI** (`sk-…`) y 
 proveedor se detecta solo por el formato; si no lo reconoce, lo eliges a mano.
 Antes de guardarla se verifica contra la API del proveedor. Se guarda cifrada en
 el dispositivo, nunca en el repositorio.
+
+Puedes guardar **una clave por proveedor**. Con dos, uno es el principal y el
+otro queda de respaldo: si el principal está sobrecargado, sin cuota, caído o
+devuelve un grafo inservible, la misma petición pasa sola al siguiente, y la app
+te avisa cuál falló y cuál generó el grafo.

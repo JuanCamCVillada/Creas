@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:creative/engine/generation_engine.dart';
 import 'package:creative/engine/graph_generator.dart';
+import 'package:creative/engine/llm_provider.dart';
 
 import '../helpers/fakes.dart';
 
@@ -62,10 +63,10 @@ Map<String, dynamic> _cyclicArgs() => {
 void main() {
   group('GenerationEngine', () {
     test('returns a saved GraphSession on the first successful attempt', () async {
-      final apiKeyStore = FakeApiKeyStore('sk-ant-test');
+      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([_validArgs]);
       final GraphGenerator engine =
-          GenerationEngine(client: client, apiKeyStore: apiKeyStore);
+          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
 
       final session = await engine.generate('input de prueba');
 
@@ -75,13 +76,13 @@ void main() {
     });
 
     test('retries once after a malformed response, then succeeds', () async {
-      final apiKeyStore = FakeApiKeyStore('sk-ant-test');
+      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([
         () => {'nodes': 'not-a-list'},
         _validArgs,
       ]);
       final GraphGenerator engine =
-          GenerationEngine(client: client, apiKeyStore: apiKeyStore);
+          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
 
       final session = await engine.generate('input de prueba');
 
@@ -90,13 +91,13 @@ void main() {
     });
 
     test('throws GenerationFailedException after two malformed responses', () async {
-      final apiKeyStore = FakeApiKeyStore('sk-ant-test');
+      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([
         () => {'nodes': 'not-a-list'},
         () => {'nodes': 'still-not-a-list'},
       ]);
       final GraphGenerator engine =
-          GenerationEngine(client: client, apiKeyStore: apiKeyStore);
+          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
 
       expect(
         () => engine.generate('input de prueba'),
@@ -105,10 +106,10 @@ void main() {
     });
 
     test('retries once after a cyclic lineage, then succeeds', () async {
-      final apiKeyStore = FakeApiKeyStore('sk-ant-test');
+      final apiKeyStore = FakeApiKeyStore('AIzaTest');
       final client = FakeGraphGenerationClient([_cyclicArgs, _validArgs]);
       final GraphGenerator engine =
-          GenerationEngine(client: client, apiKeyStore: apiKeyStore);
+          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
 
       final session = await engine.generate('input de prueba');
 
@@ -121,13 +122,85 @@ void main() {
       final apiKeyStore = FakeApiKeyStore();
       final client = FakeGraphGenerationClient([_validArgs]);
       final GraphGenerator engine =
-          GenerationEngine(client: client, apiKeyStore: apiKeyStore);
+          GenerationEngine(clients: {LlmProvider.gemini: client}, apiKeyStore: apiKeyStore);
 
       expect(
         () => engine.generate('input de prueba'),
         throwsA(isA<GenerationFailedException>()),
       );
       expect(client.callCount, 0);
+    });
+    test('routes to the OpenAI client when the key is an OpenAI key', () async {
+      final apiKeyStore = FakeApiKeyStore('sk-proj-abc123');
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final GraphGenerator engine = GenerationEngine(
+        clients: {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        apiKeyStore: apiKeyStore,
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(openai.callCount, 1);
+      expect(gemini.callCount, 0);
+    });
+
+    test('routes to the Gemini client when the key is a Gemini key', () async {
+      final apiKeyStore = FakeApiKeyStore('AIzaSyExample');
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final GraphGenerator engine = GenerationEngine(
+        clients: {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        apiKeyStore: apiKeyStore,
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.callCount, 1);
+      expect(openai.callCount, 0);
+    });
+
+    test('an explicit provider choice overrides what the key looks like', () async {
+      // A key whose shape says OpenAI, but the user pinned Gemini.
+      final apiKeyStore = FakeApiKeyStore('sk-proj-abc123', LlmProvider.gemini);
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final openai = FakeGraphGenerationClient([_validArgs]);
+      final GraphGenerator engine = GenerationEngine(
+        clients: {LlmProvider.gemini: gemini, LlmProvider.openai: openai},
+        apiKeyStore: apiKeyStore,
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.callCount, 1);
+      expect(openai.callCount, 0);
+    });
+
+    test('falls back to Gemini for a key whose shape is unrecognized', () async {
+      // Keeps keys saved before provider selection existed working.
+      final apiKeyStore = FakeApiKeyStore('some-unknown-format');
+      final gemini = FakeGraphGenerationClient([_validArgs]);
+      final GraphGenerator engine = GenerationEngine(
+        clients: {LlmProvider.gemini: gemini},
+        apiKeyStore: apiKeyStore,
+      );
+
+      await engine.generate('input de prueba');
+
+      expect(gemini.callCount, 1);
+    });
+
+    test('throws when the resolved provider has no client registered', () async {
+      final apiKeyStore = FakeApiKeyStore('sk-proj-abc123');
+      final GraphGenerator engine = GenerationEngine(
+        clients: {LlmProvider.gemini: FakeGraphGenerationClient([_validArgs])},
+        apiKeyStore: apiKeyStore,
+      );
+
+      expect(
+        () => engine.generate('input de prueba'),
+        throwsA(isA<GenerationFailedException>()),
+      );
     });
   });
 }

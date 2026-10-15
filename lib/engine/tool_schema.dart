@@ -1,5 +1,28 @@
 import 'icon_catalog.dart';
 
+/// [emitCreativeGraphToolSchema]'s `input_schema` in standard JSON Schema,
+/// for providers that don't use Gemini's dialect (OpenAI): lowercase type
+/// names, and no `format: "enum"` — that marker is Gemini-only and a
+/// standard enum already says what it means. Derived from the one schema
+/// rather than hand-copied, so the two can't drift apart.
+Map<String, dynamic> toStandardJsonSchema(Map<String, dynamic> geminiSchema) {
+  Object? convert(Object? node) {
+    if (node is Map) {
+      return {
+        for (final entry in node.entries)
+          if (!(entry.key == 'format' && entry.value == 'enum'))
+            entry.key as String: entry.key == 'type' && entry.value is String
+                ? (entry.value as String).toLowerCase()
+                : convert(entry.value),
+      };
+    }
+    if (node is List) return [for (final item in node) convert(item)];
+    return node;
+  }
+
+  return convert(geminiSchema) as Map<String, dynamic>;
+}
+
 const Map<String, dynamic> emitCreativeGraphToolSchema = {
   'name': 'emit_creative_graph',
   'description':

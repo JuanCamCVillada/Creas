@@ -66,7 +66,7 @@ void main() {
       expect(result, {'nodes': [], 'edges': []});
     });
 
-    test('throws GeminiApiException on a non-200 response', () async {
+    test('throws LlmApiException on a non-200 response', () async {
       final mockClient = MockClient((request) async {
         return http.Response('{"error": "unauthorized"}', 401);
       });
@@ -79,11 +79,11 @@ void main() {
           systemPrompt: 'system',
           userInput: 'input',
         ),
-        throwsA(isA<GeminiApiException>()),
+        throwsA(isA<LlmApiException>()),
       );
     });
 
-    test('throws GeminiApiException when no functionCall part is returned',
+    test('throws LlmApiException when no functionCall part is returned',
         () async {
       final mockClient = MockClient((request) async {
         return http.Response(
@@ -110,7 +110,7 @@ void main() {
           systemPrompt: 'system',
           userInput: 'input',
         ),
-        throwsA(isA<GeminiApiException>()),
+        throwsA(isA<LlmApiException>()),
       );
     });
 
@@ -178,7 +178,7 @@ void main() {
           systemPrompt: 'system',
           userInput: 'input',
         ),
-        throwsA(isA<GeminiApiException>().having(
+        throwsA(isA<LlmApiException>().having(
           (e) => e.toString(),
           'message',
           contains('sobrecargado'),
@@ -203,12 +203,12 @@ void main() {
           systemPrompt: 'system',
           userInput: 'input',
         ),
-        throwsA(isA<GeminiApiException>()),
+        throwsA(isA<LlmApiException>()),
       );
       expect(callCount, 1);
     });
 
-    test('throws GeminiApiException when there are no candidates', () async {
+    test('throws LlmApiException when there are no candidates', () async {
       final mockClient = MockClient((request) async {
         return http.Response(jsonEncode({'candidates': <dynamic>[]}), 200);
       });
@@ -221,7 +221,7 @@ void main() {
           systemPrompt: 'system',
           userInput: 'input',
         ),
-        throwsA(isA<GeminiApiException>()),
+        throwsA(isA<LlmApiException>()),
       );
     });
   });

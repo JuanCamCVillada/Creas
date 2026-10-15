@@ -70,6 +70,47 @@ void main() {
       expect(nodeRequired, isNot(contains('icon')));
     });
 
+    group('toStandardJsonSchema', () {
+      final converted = toStandardJsonSchema(
+        emitCreativeGraphToolSchema['input_schema'] as Map<String, dynamic>,
+      );
+      final nodeProps = (((converted['properties'] as Map)['nodes'] as Map)['items']
+          as Map)['properties'] as Map<String, dynamic>;
+
+      test('lowercases every type name', () {
+        expect(converted['type'], 'object');
+        expect((converted['properties'] as Map)['nodes']['type'], 'array');
+        expect((nodeProps['label'] as Map)['type'], 'string');
+        expect((nodeProps['confidence'] as Map)['type'], 'number');
+        expect((nodeProps['sequence'] as Map)['type'], 'integer');
+      });
+
+      test('drops the Gemini-only format:"enum" marker but keeps the enum', () {
+        expect((nodeProps['type'] as Map).containsKey('format'), isFalse);
+        expect((nodeProps['type'] as Map)['enum'], ['fuente', 'concepto']);
+        expect((nodeProps['icon'] as Map)['enum'], allowedNodeIconNames);
+      });
+
+      test('does not mistake a property NAMED type for a type keyword', () {
+        // The node schema has a property literally called "type"; it must
+        // survive as a property whose own type is lowercased.
+        expect(nodeProps.containsKey('type'), isTrue);
+        expect((nodeProps['type'] as Map)['type'], 'string');
+      });
+
+      test('keeps the required lists untouched', () {
+        expect(converted['required'], containsAll(['nodes', 'edges']));
+      });
+
+      test('does not mutate the original Gemini-dialect schema', () {
+        final original = emitCreativeGraphToolSchema['input_schema'] as Map<String, dynamic>;
+        expect(original['type'], 'OBJECT');
+        final originalProps = (((original['properties'] as Map)['nodes'] as Map)['items']
+            as Map)['properties'] as Map;
+        expect((originalProps['type'] as Map)['format'], 'enum');
+      });
+    });
+
     test('edge schema enumerates the four lineage relations', () {
       final inputSchema =
           emitCreativeGraphToolSchema['input_schema'] as Map<String, dynamic>;

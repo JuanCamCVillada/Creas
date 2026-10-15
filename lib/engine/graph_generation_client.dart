@@ -6,10 +6,12 @@ abstract class GraphGenerationClient {
   });
 }
 
-class GeminiApiException implements Exception {
-  const GeminiApiException(this.message);
+/// A failure talking to an LLM provider (HTTP error, an empty or malformed
+/// response). Provider-neutral: the message itself names which provider.
+class LlmApiException implements Exception {
+  const LlmApiException(this.message);
   final String message;
 
   @override
-  String toString() => 'GeminiApiException: $message';
+  String toString() => 'LlmApiException: $message';
 }

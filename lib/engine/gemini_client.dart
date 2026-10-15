@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 
 import 'graph_generation_client.dart';
+import 'http_retry.dart';
 import 'tool_schema.dart';
 
 class GeminiClient implements GraphGenerationClient {
@@ -71,49 +71,42 @@ class GeminiClient implements GraphGenerationClient {
       },
     });
 
-    var attempt = 0;
-    late http.Response response;
-    while (true) {
-      response = await _httpClient.post(
-        Uri.parse(_endpoint),
-        headers: {
-          'content-type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: body,
-      );
-
-      if (!_retryableStatusCodes.contains(response.statusCode) ||
-          attempt >= maxRetries) {
-        break;
-      }
-      final delay = baseRetryDelay * math.pow(2, attempt).toInt();
-      await Future.delayed(delay);
-      attempt++;
-    }
+    final retried = await postWithRetry(
+      client: _httpClient,
+      url: Uri.parse(_endpoint),
+      headers: {
+        'content-type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: body,
+      maxRetries: maxRetries,
+      baseDelay: baseRetryDelay,
+      isTransient: (r) => _retryableStatusCodes.contains(r.statusCode),
+    );
+    final response = retried.response;
 
     if (response.statusCode != 200) {
       if (_retryableStatusCodes.contains(response.statusCode)) {
-        throw GeminiApiException(
+        throw LlmApiException(
             'Gemini está sobrecargado (${response.statusCode}) tras '
-            '${attempt + 1} intento${attempt == 0 ? '' : 's'}. Espera un '
-            'momento y vuelve a intentar.');
+            '${retried.attempts} intento${retried.attempts == 1 ? '' : 's'}. '
+            'Espera un momento y vuelve a intentar.');
       }
-      throw GeminiApiException(
+      throw LlmApiException(
           'Gemini API devolvió ${response.statusCode}: ${response.body}');
     }
 
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     final candidates = decoded['candidates'] as List<dynamic>?;
     if (candidates == null || candidates.isEmpty) {
-      throw const GeminiApiException('respuesta sin candidatos');
+      throw const LlmApiException('respuesta sin candidatos');
     }
 
     final firstCandidate = candidates.first as Map<String, dynamic>;
     final content = firstCandidate['content'] as Map<String, dynamic>?;
     final parts = content?['parts'] as List<dynamic>?;
     if (parts == null) {
-      throw const GeminiApiException('respuesta sin contenido');
+      throw const LlmApiException('respuesta sin contenido');
     }
 
     final functionCallPart = parts
@@ -123,7 +116,7 @@ class GeminiClient implements GraphGenerationClient {
         .firstWhere((_) => true, orElse: () => null);
 
     if (functionCallPart == null) {
-      throw const GeminiApiException(
+      throw const LlmApiException(
           'el modelo no llamó a emit_creative_graph');
     }
 

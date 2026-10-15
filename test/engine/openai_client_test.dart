@@ -1,0 +1,287 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:creative/engine/graph_generation_client.dart';
+import 'package:creative/engine/openai_client.dart';
+
+http.Response _models(List<String> ids) => http.Response(
+      jsonEncode({
+        'data': [for (final id in ids) {'id': id}],
+      }),
+      200,
+    );
+
+http.Response _toolCall(Map<String, dynamic> args) => http.Response(
+      jsonEncode({
+        'choices': [
+          {
+            'message': {
+              'tool_calls': [
+                {
+                  'type': 'function',
+                  'function': {
+                    'name': 'emit_creative_graph',
+                    'arguments': jsonEncode(args),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      200,
+    );
+
+OpenAiClient _client(MockClientHandler handler, {int maxRetries = 3}) => OpenAiClient(
+      httpClient: MockClient(handler),
+      maxRetries: maxRetries,
+      baseRetryDelay: Duration.zero,
+    );
+
+Future<Map<String, dynamic>> _call(OpenAiClient client) => client.requestToolCall(
+      apiKey: 'sk-test',
+      systemPrompt: 'system',
+      userInput: 'input',
+    );
+
+void main() {
+  group('OpenAiClient', () {
+    test('forces the emit_creative_graph function and returns its parsed arguments',
+        () async {
+      late Map<String, dynamic> sentBody;
+      late http.Request sentRequest;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        sentRequest = request;
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return _toolCall({'nodes': [], 'edges': []});
+      });
+
+      final result = await _call(client);
+
+      expect(result, {'nodes': [], 'edges': []});
+      expect(sentRequest.url.toString(), 'https://api.openai.com/v1/chat/completions');
+      expect(sentRequest.headers['authorization'], 'Bearer sk-test');
+      expect(sentBody['tool_choice'], {
+        'type': 'function',
+        'function': {'name': 'emit_creative_graph'},
+      });
+      final messages = sentBody['messages'] as List<dynamic>;
+      expect(messages.first, {'role': 'system', 'content': 'system'});
+      expect(messages.last, {'role': 'user', 'content': 'input'});
+    });
+
+    test('sends the schema in standard JSON Schema, not Gemini\'s dialect',
+        () async {
+      late Map<String, dynamic> sentBody;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return _toolCall({});
+      });
+
+      await _call(client);
+
+      final parameters = ((sentBody['tools'] as List).first as Map)['function']['parameters']
+          as Map<String, dynamic>;
+      expect(parameters['type'], 'object');
+      final nodeProps = ((parameters['properties'] as Map)['nodes'] as Map)['items']['properties']
+          as Map<String, dynamic>;
+      expect((nodeProps['type'] as Map)['type'], 'string');
+      expect((nodeProps['type'] as Map).containsKey('format'), isFalse);
+    });
+
+    test('picks the best model the account actually has', () async {
+      String? modelUsed;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) {
+          // No gpt-4.1-mini, so the next preference should win.
+          return _models(['whisper-1', 'gpt-4o', 'gpt-4o-mini', 'gpt-5-mini']);
+        }
+        modelUsed = (jsonDecode(request.body) as Map<String, dynamic>)['model'] as String;
+        return _toolCall({});
+      });
+
+      await _call(client);
+
+      expect(modelUsed, 'gpt-5-mini');
+    });
+
+    test('asks for the model list only once per key', () async {
+      var listings = 0;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) {
+          listings++;
+          return _models(['gpt-4o-mini']);
+        }
+        return _toolCall({});
+      });
+
+      await _call(client);
+      await _call(client);
+
+      expect(listings, 1);
+    });
+
+    test('falls back to a default model when listing fails, so the real error '
+        'surfaces from the actual request', () async {
+      String? modelUsed;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) throw http.ClientException('offline');
+        modelUsed = (jsonDecode(request.body) as Map<String, dynamic>)['model'] as String;
+        return _toolCall({});
+      });
+
+      await _call(client);
+
+      expect(modelUsed, 'gpt-4o-mini');
+    });
+
+    test('a pinned model skips the listing entirely', () async {
+      var listings = 0;
+      String? modelUsed;
+      final client = OpenAiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/models')) listings++;
+          modelUsed = (jsonDecode(request.body) as Map<String, dynamic>)['model'] as String;
+          return _toolCall({});
+        }),
+        model: 'my-fine-tune',
+        baseRetryDelay: Duration.zero,
+      );
+
+      await _call(client);
+
+      expect(listings, 0);
+      expect(modelUsed, 'my-fine-tune');
+    });
+
+    test('retries a 503 and succeeds once OpenAI recovers', () async {
+      var completions = 0;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        completions++;
+        return completions < 3 ? http.Response('{}', 503) : _toolCall({'ok': true});
+      });
+
+      final result = await _call(client);
+
+      expect(result, {'ok': true});
+      expect(completions, 3);
+    });
+
+    test('retries a plain rate-limit 429', () async {
+      var completions = 0;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        completions++;
+        return completions < 2
+            ? http.Response('{"error":{"code":"rate_limit_exceeded"}}', 429)
+            : _toolCall({});
+      });
+
+      await _call(client);
+
+      expect(completions, 2);
+    });
+
+    test('does NOT retry an exhausted quota 429 — waiting cannot fix it, and '
+        'says so plainly', () async {
+      var completions = 0;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        completions++;
+        return http.Response('{"error":{"code":"insufficient_quota"}}', 429);
+      });
+
+      await expectLater(
+        _call(client),
+        throwsA(isA<LlmApiException>().having(
+          (e) => e.message,
+          'message',
+          contains('insufficient_quota'),
+        )),
+      );
+      expect(completions, 1);
+    });
+
+    test('gives a clear overload message after exhausting retries', () async {
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        return http.Response('{}', 503);
+      }, maxRetries: 1);
+
+      await expectLater(
+        _call(client),
+        throwsA(isA<LlmApiException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('OpenAI'), contains('sobrecargado'), contains('2 intentos')),
+        )),
+      );
+    });
+
+    test('does not retry a 401', () async {
+      var completions = 0;
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return http.Response('{}', 401);
+        completions++;
+        return http.Response('{"error":{"message":"Incorrect API key"}}', 401);
+      });
+
+      await expectLater(_call(client), throwsA(isA<LlmApiException>()));
+      expect(completions, 1);
+    });
+
+    test('throws when the model answers without calling the function', () async {
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        return http.Response(
+          jsonEncode({
+            'choices': [
+              {'message': {'content': 'no function call here'}},
+            ],
+          }),
+          200,
+        );
+      });
+
+      await expectLater(_call(client), throwsA(isA<LlmApiException>()));
+    });
+
+    test('throws when the function arguments are not valid JSON', () async {
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        return http.Response(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {
+                  'tool_calls': [
+                    {
+                      'function': {'name': 'emit_creative_graph', 'arguments': '{not json'},
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      await expectLater(_call(client), throwsA(isA<LlmApiException>()));
+    });
+
+    test('throws when there are no choices', () async {
+      final client = _client((request) async {
+        if (request.url.path.endsWith('/models')) return _models(['gpt-4o-mini']);
+        return http.Response(jsonEncode({'choices': <dynamic>[]}), 200);
+      });
+
+      await expectLater(_call(client), throwsA(isA<LlmApiException>()));
+    });
+  });
+}

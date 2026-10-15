@@ -4,7 +4,7 @@ Convierte un devlog, una retro o una transcripción en un grafo de conocimiento:
 qué fuentes te inspiraron, qué conceptos derivaron de ellas y dónde estuvieron
 los puntos de inflexión reales de tu proceso creativo.
 
-La app le pasa tu texto a Gemini, verifica que el grafo resultante sea
+La app le pasa tu texto a Gemini u OpenAI, verifica que el grafo resultante sea
 acíclico y que los puntos de inflexión declarados cumplan sus condiciones
 (convergencia de varias fuentes + cambio de dirección real) antes de
 mostrarlo — nada se muestra como "verificado" sin serlo.
@@ -52,17 +52,19 @@ información vive en modales.
 
 ```
 lib/
-├── engine/     # Cliente de Gemini, prompt del sistema, parseo y verificación del grafo
+├── engine/     # Clientes de Gemini y OpenAI, detección de proveedor, prompt del sistema, parseo y verificación del grafo
 ├── models/     # Node, LineageEdge, AffinityEdge, TurningPoint, CreativeGraph, GraphSession
 ├── storage/    # Clave de API (flutter_secure_storage) y sesiones (SharedPreferences)
 └── ui/
     ├── input/      # Pantalla de entrada — modos GUIADO y LIBRE
     ├── graph/      # Jardín Digital, Árbol Genealógico, Conectar, lienzo compartido
     ├── sessions/   # Lista de sesiones guardadas
-    ├── settings/   # Credencial de Gemini
+    ├── settings/   # Clave de API: validación y elección de proveedor
     └── theme/      # Tokens de color, tipografía y widgets del sistema HUD Táctico
 ```
 
-La app pide tu propia clave de API de Gemini la primera vez (ícono de llave,
-arriba a la derecha) — se guarda cifrada en el dispositivo, nunca en el
-repositorio.
+La app pide tu propia clave de API la primera vez (ícono de llave, arriba a la
+derecha): pega una clave de **Gemini** (`AIza…`) o de **OpenAI** (`sk-…`) y el
+proveedor se detecta solo por el formato; si no lo reconoce, lo eliges a mano.
+Antes de guardarla se verifica contra la API del proveedor. Se guarda cifrada en
+el dispositivo, nunca en el repositorio.
